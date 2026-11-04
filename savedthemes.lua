@@ -13,7 +13,7 @@ local saved = {};
 
 -- The look settings a theme holds
 saved.KEYS = {
-    'size', 'icon_spacing', 'row_spacing', 'icon_theme', 'icon_zigzag', 'icon_zigzag_offset', 'icon_zigzag_text',
+    'size', 'icon_spacing', 'row_spacing', 'icon_theme', 'icon_zigzag', 'icon_zigzag_offset', 'icon_zigzag_text', 'icon_zigzag_first',
     'show_distance', 'show_self_distance', 'distance_decimals', 'distance_fixed',
     'distance_offset_x', 'distance_offset_y', 'distance_outline_color', 'distance_outline_thickness',
     'show_rings', 'ring_thickness', 'ring_gap', 'ring_color', 'ring_gone_color', 'ring_warn',

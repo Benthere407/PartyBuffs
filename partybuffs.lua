@@ -1,6 +1,6 @@
 addon.name      = 'PartyBuffs';
 addon.author    = 'Thorny';
-addon.version   = '1.12';
+addon.version   = '1.13';
 addon.desc      = 'Displays party buffs next to vanilla party list.';
 addon.link      = 'https://github.com/ThornyFFXI/MiscAshita4';
 
@@ -76,6 +76,7 @@ local default_settings = T{
     icon_spacing = 0,  -- extra horizontal pixels between icons
     icon_zigzag = false,       -- stagger every other icon
     icon_zigzag_offset = 8,    -- how far (px, below 0 = up)
+    icon_zigzag_first = 'top',  -- first icon (next to the party list) on the 'top' or 'bottom' of the zigzag
     icon_zigzag_text = 'below', -- timer text: 'below', 'zig' (in-line icons' text above) or 'zag' (moved icons' text above)
     saved_theme = '',  -- the saved theme (savedthemes\<name>.lua) last loaded or saved, shown in the menu
     ui_scale = 1.0,    -- the settings window's scale (its header's < 100% > stepper)

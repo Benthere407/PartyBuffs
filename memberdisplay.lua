@@ -337,11 +337,18 @@ function member:Render(testMode)
     -- Zigzag: every other icon moved down (or up) by this much
     local zigzag = opt('icon_zigzag', false) and opt('icon_zigzag_offset', 8) or 0;
     local textAbove = opt('icon_zigzag_text', 'below');
+    -- Which icons move: the 2nd, 4th... normally; the 1st, 3rd... when that puts the first one where it should be
+    -- (moving down leaves the first on top, moving up puts it on top)
+    local moveFirst = (opt('icon_zigzag_first', 'top') == 'top') == (zigzag < 0);
 
     --Draw member buffs..
     local showTimers = opt('show_rings', false) or opt('show_timer_text', false);
     for slot,buff in ipairs(sorted) do
-        local iconY = self.PositionY + ((slot % 2 == 0) and zigzag or 0);
+        -- Counted from the right, next to the party list, so every row's zigzag lines up there
+        -- whatever its number of buffs
+        local fromRight = #sorted - slot + 1;
+        local moved = (zigzag ~= 0) and ((fromRight % 2 == 1) == moveFirst);
+        local iconY = self.PositionY + (moved and zigzag or 0);
         local icon = GetStatusIconById(buff);
         if (icon ~= nil) then
             renderer:Draw(icon.texture, buffPositionX, iconY, icon.size, iconSize / icon.size);
@@ -360,9 +367,9 @@ function member:Render(testMode)
             end
             table.insert(rings, { x = buffPositionX, y = iconY, size = iconSize, fraction = fraction, remaining = remaining, seed = (self.Index * 0.37) + (slot * 0.61),
                 -- overlapping icons in a straight line: every other label a line lower (zigzag icons stagger them already)
-                zig = (iconSpacing < 0) and (zigzag == 0) and (slot % 2 == 0),
+                zig = (iconSpacing < 0) and (zigzag == 0) and (fromRight % 2 == 0),
                 -- zigzag icons: the timer text of the zig (in line) or zag (moved) icons can go above them
-                above = (zigzag ~= 0) and (textAbove == ((slot % 2 == 0) and 'zag' or 'zig')) });
+                above = (zigzag ~= 0) and (textAbove == (moved and 'zag' or 'zig')) });
         end
         buffPositionX = buffPositionX + iconSize + iconSpacing;
     end

@@ -280,6 +280,7 @@ local function theme_row(s)
 end
 
 local ZIGZAG_TEXT = { { 'below', 'Both below' }, { 'zig', 'Zig above' }, { 'zag', 'Zag above' } };
+local ZIGZAG_FIRST = { { 'top', 'Top' }, { 'bottom', 'Bottom' } };
 
 local function page_icons()
     local s, n = gSettings, nil;
@@ -304,7 +305,7 @@ local function page_icons()
     if (n ~= nil) then s.row_spacing = n; mark_dirty(); end
 
     vc.section('ZIGZAG', nil, function()
-        s.icon_zigzag, s.icon_zigzag_offset, s.icon_zigzag_text = false, 8, 'below'; mark_dirty();
+        s.icon_zigzag, s.icon_zigzag_offset, s.icon_zigzag_text, s.icon_zigzag_first = false, 8, 'below', 'top'; mark_dirty();
     end);
     n = switch('icon_zigzag', 'Zigzag icons', s.icon_zigzag == true,
         'Stagger every other icon up or down. Goes well with icon spacing below 0, so overlapping icons stay easy to tell apart.');
@@ -314,6 +315,9 @@ local function page_icons()
         n = slider('icon_zigzag_offset', 'Zigzag height', s.icon_zigzag_offset or 8, -range, range, 1, '%d px',
             'How far every other icon moves: above 0 down, below 0 up. You may need more Row spacing to make room.');
         if (n ~= nil) then s.icon_zigzag_offset = n; mark_dirty(); end
+        n = seg_row('icon_zigzag_first', 'First icon', ZIGZAG_FIRST, s.icon_zigzag_first or 'top',
+            'Whether the first icon of each row, the one next to the party list, sits on the top or the bottom of the zigzag.');
+        if (n ~= nil) then s.icon_zigzag_first = n; mark_dirty(); end
         n = seg_row('icon_zigzag_text', 'Timer text', ZIGZAG_TEXT, s.icon_zigzag_text or 'below',
             'Where the timer text goes. Zig = the icons left in line, Zag = the icons that move. '..
             'Putting one of them above the icon keeps the labels apart.');
