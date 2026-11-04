@@ -8,8 +8,9 @@
 *     1. what we learned watching the buff (your own exact timer when it lands on you, or the
 *        longest a buff has lasted on a party member), saved in settings.learned_durations
 *     2. the BASE_DURATIONS table below
-*   If neither is known, or the buff was already up when we first saw the member (e.g. after
-*   loading the addon or zoning), the time left is unknown.
+*   If neither is known, or the buff was already up when we first saw the member (e.g. joining a
+*   party), the time left is unknown. Start times are saved on unload so a reload carries on, and
+*   zoning or a member being in another zone doesn't restart them.
 --]]
 
 local timers = {};
@@ -19,6 +20,9 @@ local UTCSTAMP_ID = 'partybuffs:realutcstamp';
 local MISSING_GRACE = 1.5;   -- seconds a buff can vanish from memory before we forget it
 local RECAST_WINDOW = 5.0;   -- seconds an action packet stays valid while waiting for the buff to show
 local MAX_DURATION  = 3 * 60 * 60;
+local GAP           = 2.0;    -- seconds without an update for a member that count as not watching them
+local EMPTY_GRACE   = 10.0;   -- seconds a member's whole buff list can be empty before we forget their buffs
+local OVERDUE       = 10.0;   -- seconds a buff can outlast its expected duration before its time counts as unknown
 
 -- Base durations (seconds) for common buffs, used until a better value is learned.
 local BASE_DURATIONS = {
@@ -169,18 +173,112 @@ end
 ----------------------------------------------------------------------------------------------------
 -- Party member tracking
 ----------------------------------------------------------------------------------------------------
+-- A buff is gone: learn how long it lasted, unless that isn't known for sure
+local function Forget(state, id, entry)
+    if (not entry.unknown) and (not entry.no_learn) then
+        local lasted = entry.last_seen - entry.start;
+        local duration = GetDuration(id);
+        -- (far longer than expected = it was probably recast where we couldn't see it)
+        if (duration == nil) or (lasted < duration * 2) then
+            Learn(id, lasted, false);
+        end
+    end
+    state.buffs[id] = nil;
+end
+
+-- Buffs tracked before the addon was last unloaded: [serverId] = { [buffId] = start as os.time() }
+local restored = nil;
+local function Restored()
+    if (restored == nil) then
+        restored = {};
+        local now = os.time();
+        for sid,list in pairs(settings.tracked_buffs or {}) do
+            for id,start in pairs(list) do
+                if (type(start) == 'number') and (now - start < MAX_DURATION) then
+                    restored[tonumber(sid)] = restored[tonumber(sid)] or {};
+                    restored[tonumber(sid)][tonumber(id)] = start;
+                end
+            end
+        end
+    end
+    return restored;
+end
+
+-- Buffs recast between two looks at a member's list, found without seeing the action (e.g. cast out
+-- of range): the server drops a recast buff and adds it again at the end of the list, so it either
+-- moves behind buffs it used to be in front of, or vanishes and comes back. (A recast of the buff
+-- that is already last changes nothing, so it can't be seen.)
+local function Recast(old, new)
+    local found = {};
+    if (old == nil) or (#old == 0) then
+        return found;
+    end
+    local inOld, inNew = {}, {};
+    for _,id in ipairs(old) do inOld[id] = true; end
+    for _,id in ipairs(new) do inNew[id] = true; end
+
+    -- Came back after vanishing (gone from the last list, but we still remember it)
+    for _,id in ipairs(new) do
+        if (not inOld[id]) then found[id] = true; end
+    end
+
+    -- Moved: walk both lists (only buffs in both), anything out of step in the old order moved back
+    local keptNew = {};
+    for _,id in ipairs(new) do
+        if inOld[id] then keptNew[#keptNew + 1] = id; end
+    end
+    local j = 1;
+    for _,id in ipairs(old) do
+        if inNew[id] then
+            if (keptNew[j] == id) then
+                j = j + 1;
+            else
+                found[id] = true;
+            end
+        end
+    end
+    return found;
+end
+
 local function UpdateMember(serverId, buffs)
     local now = Now();
     local state = members[serverId];
-    local firstLook = (state == nil);
-    if firstLook then
-        state = {};
+    if (state == nil) then
+        state = { buffs = {}, updated = now, first = now };
         members[serverId] = state;
     end
+    -- First look at this member: buffs already up have an unknown start (unless saved before a reload).
+    -- Lasts until their list first loads, or a short while if they have no buffs.
+    local firstLook = (state.first ~= nil) and (now - state.first < EMPTY_GRACE);
+
+    -- Not watched for a while (zoning, member in another zone, row hidden): what vanished then
+    -- doesn't count as wearing off, and how long those buffs lasted is not known
+    if (now - state.updated > GAP) then
+        for _,entry in pairs(state.buffs) do
+            entry.last_seen = now;
+            entry.no_learn = true;
+        end
+    end
+    state.updated = now;
+
+    -- An empty list right after a gap is usually the party data not loaded yet: wait for it
+    if (#buffs == 0) then
+        for id,entry in pairs(state.buffs) do
+            if (now - entry.last_seen > EMPTY_GRACE) then
+                Forget(state, id, entry);
+            end
+        end
+        return;
+    end
+
     local applied = pending[serverId] or {};
+    local saved = firstLook and Restored()[serverId] or nil;
+    state.first = nil;
+    local recast = Recast(state.order, buffs);
+    state.order = buffs;
 
     for _,id in ipairs(buffs) do
-        local entry = state[id];
+        local entry = state.buffs[id];
         local appliedAt = applied[id];
         if (appliedAt ~= nil) and (now - appliedAt > RECAST_WINDOW) then
             appliedAt = nil;
@@ -188,23 +286,31 @@ local function UpdateMember(serverId, buffs)
         end
 
         if (entry == nil) then
-            entry = { start = appliedAt or now, unknown = firstLook and (appliedAt == nil) };
-            state[id] = entry;
+            local savedStart = saved and saved[id];
+            if (appliedAt == nil) and (savedStart ~= nil) then
+                -- Up before the addon was reloaded: carry on from when it started
+                entry = { start = now - (os.time() - savedStart), unknown = false };
+            else
+                entry = { start = appliedAt or now, unknown = firstLook and (appliedAt == nil) };
+            end
+            state.buffs[id] = entry;
         elseif (appliedAt ~= nil) and (appliedAt > entry.start) then
             entry.start = appliedAt;   -- recast while still up
             entry.unknown = false;
+            entry.no_learn = nil;
+        elseif recast[id] then
+            entry.start = now;         -- recast where we couldn't see the action (moved to the end of their list)
+            entry.unknown = false;
+            entry.no_learn = nil;
         end
         applied[id] = nil;
         entry.last_seen = now;
     end
 
     -- Forget buffs that are gone, learning how long they lasted
-    for id,entry in pairs(state) do
+    for id,entry in pairs(state.buffs) do
         if (now - entry.last_seen > MISSING_GRACE) then
-            if (not entry.unknown) then
-                Learn(id, entry.last_seen - entry.start, false);
-            end
-            state[id] = nil;
+            Forget(state, id, entry);
         end
     end
 end
@@ -222,15 +328,11 @@ function timers.Update(index, buffs)
     end
 end
 
--- Returns seconds left, -1 for permanent buffs, or nil if unknown.
-function timers.GetRemaining(index, id)
-    if (index == 0) then
-        return selfLeft[id];
-    end
-
+-- A party member's buff: elapsed seconds and its duration, or nil if unknown
+local function MemberElapsed(index, id)
     local serverId = AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(index);
     local state = members[serverId];
-    local entry = state and state[id];
+    local entry = state and state.buffs[id];
     if (entry == nil) or entry.unknown then
         return nil;
     end
@@ -238,7 +340,42 @@ function timers.GetRemaining(index, id)
     if (duration == nil) then
         return nil;
     end
-    return math.max(0, duration - (Now() - entry.start));
+    local elapsed = Now() - entry.start;
+    if (elapsed > duration + OVERDUE) then
+        return nil;   -- still up well past its time: recast where we couldn't see it, or it lasts longer here
+    end
+    return elapsed, duration;
+end
+
+-- Keep party members' buff start times in settings, so a reload (or logging back in soon) carries on
+-- from them instead of showing those buffs as unknown. Call before saving settings on unload.
+function timers.Save()
+    local out = T{};
+    local wall, now = os.time(), Now();
+    for sid,state in pairs(members) do
+        local list = T{};
+        for id,entry in pairs(state.buffs) do
+            if (not entry.unknown) then
+                list[tostring(id)] = math.floor(wall - (now - entry.start) + 0.5);
+            end
+        end
+        if (next(list) ~= nil) then
+            out[tostring(sid)] = list;
+        end
+    end
+    settings.tracked_buffs = out;
+end
+
+-- Returns seconds left, -1 for permanent buffs, or nil if unknown.
+function timers.GetRemaining(index, id)
+    if (index == 0) then
+        return selfLeft[id];
+    end
+    local elapsed, duration = MemberElapsed(index, id);
+    if (elapsed == nil) then
+        return nil;
+    end
+    return math.max(0, duration - elapsed);
 end
 
 -- Returns time left as a fraction 0..1, -1 for permanent buffs, or nil if unknown.
@@ -252,17 +389,11 @@ function timers.GetFraction(index, id)
         return math.max(0, math.min(1, left / full));
     end
 
-    local serverId = AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(index);
-    local state = members[serverId];
-    local entry = state and state[id];
-    if (entry == nil) or entry.unknown then
+    local elapsed, duration = MemberElapsed(index, id);
+    if (elapsed == nil) then
         return nil;
     end
-    local duration = GetDuration(id);
-    if (duration == nil) then
-        return nil;
-    end
-    return math.max(0, math.min(1, 1 - ((Now() - entry.start) / duration)));
+    return math.max(0, math.min(1, 1 - (elapsed / duration)));
 end
 
 ----------------------------------------------------------------------------------------------------

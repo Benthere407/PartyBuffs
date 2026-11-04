@@ -205,9 +205,14 @@ local function draw_timer_text(draw, ring)
     if (text == nil) then
         return;
     end
-    local w = text_size(text);
+    local w, h = text_size(text);
     local x = ring.x + ((ring.size - w) / 2) + opt('timer_text_offset_x', 0);
     local y = ring.y + ring.size + opt('timer_text_offset_y', -2);
+    if ring.above then
+        y = ring.y - (h or 0) - opt('timer_text_offset_y', -2);   -- mirrored: same overlap, on top
+    elseif ring.zig then
+        y = y + (h or 0);   -- zigzag so labels under overlapping icons don't run together
+    end
 
     local color = argb_to_v4(opt('timer_text_color', 0xFFFFFFFF));
     if opt('ring_warn', true) and IsLow(ring.fraction) then

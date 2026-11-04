@@ -1,6 +1,6 @@
 addon.name      = 'PartyBuffs';
 addon.author    = 'Thorny';
-addon.version   = '1.11';
+addon.version   = '1.12';
 addon.desc      = 'Displays party buffs next to vanilla party list.';
 addon.link      = 'https://github.com/ThornyFFXI/MiscAshita4';
 
@@ -74,6 +74,9 @@ local default_settings = T{
     show_self_distance = false,
     size = 20,
     icon_spacing = 0,  -- extra horizontal pixels between icons
+    icon_zigzag = false,       -- stagger every other icon
+    icon_zigzag_offset = 8,    -- how far (px, below 0 = up)
+    icon_zigzag_text = 'below', -- timer text: 'below', 'zig' (in-line icons' text above) or 'zag' (moved icons' text above)
     saved_theme = '',  -- the saved theme (savedthemes\<name>.lua) last loaded or saved, shown in the menu
     ui_scale = 1.0,    -- the settings window's scale (its header's < 100% > stepper)
     icon_theme = '',   -- folder name under themes\, '' = the game's own icons
@@ -93,6 +96,7 @@ local default_settings = T{
     ring_dot_size = 3,            -- dot radius in pixels
     ring_show_unknown = true,     -- dim full ring when a party member's time left is unknown
     learned_durations = T{},      -- [tostring(buff id)] = seconds
+    tracked_buffs = T{},          -- [tostring(server id)] = { [tostring(buff id)] = start (os.time) }, kept over reloads
 
     -- Time left text under each icon ("16m", "50")
     show_timer_text = false,
@@ -263,7 +267,8 @@ ashita.events.register('unload', 'unload_cb', function ()
         member:Destroy();
     end
     yunaFont.unregister();
-    settingLib.save();   -- keep learned buff durations
+    pcall(buffTimers.Save);
+    settingLib.save();   -- keep learned buff durations and party members' buff timers
 end)
 
 ashita.events.register('packet_in', 'packet_in_cb', function (e)

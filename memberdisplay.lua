@@ -334,12 +334,17 @@ function member:Render(testMode)
     local firstBuffPositionX = self.PositionX - (#sorted * iconSize) - (math.max(0, #sorted - 1) * iconSpacing);
     local buffPositionX = firstBuffPositionX;
 
+    -- Zigzag: every other icon moved down (or up) by this much
+    local zigzag = opt('icon_zigzag', false) and opt('icon_zigzag_offset', 8) or 0;
+    local textAbove = opt('icon_zigzag_text', 'below');
+
     --Draw member buffs..
     local showTimers = opt('show_rings', false) or opt('show_timer_text', false);
     for slot,buff in ipairs(sorted) do
+        local iconY = self.PositionY + ((slot % 2 == 0) and zigzag or 0);
         local icon = GetStatusIconById(buff);
         if (icon ~= nil) then
-            renderer:Draw(icon.texture, buffPositionX, self.PositionY, icon.size, iconSize / icon.size);
+            renderer:Draw(icon.texture, buffPositionX, iconY, icon.size, iconSize / icon.size);
         end
         if (showTimers) then
             local fraction, remaining;
@@ -353,13 +358,17 @@ function member:Render(testMode)
                 fraction = buffTimers.GetFraction(self.Index, buff);
                 remaining = buffTimers.GetRemaining(self.Index, buff);
             end
-            table.insert(rings, { x = buffPositionX, y = self.PositionY, size = iconSize, fraction = fraction, remaining = remaining, seed = (self.Index * 0.37) + (slot * 0.61) });
+            table.insert(rings, { x = buffPositionX, y = iconY, size = iconSize, fraction = fraction, remaining = remaining, seed = (self.Index * 0.37) + (slot * 0.61),
+                -- overlapping icons in a straight line: every other label a line lower (zigzag icons stagger them already)
+                zig = (iconSpacing < 0) and (zigzag == 0) and (slot % 2 == 0),
+                -- zigzag icons: the timer text of the zig (in line) or zag (moved) icons can go above them
+                above = (zigzag ~= 0) and (textAbove == ((slot % 2 == 0) and 'zag' or 'zig')) });
         end
         buffPositionX = buffPositionX + iconSize + iconSpacing;
     end
 
     -- Track the drawn area (at least one icon wide so empty rows can still be grabbed)
-    ExtendBounds(math.min(firstBuffPositionX, self.PositionX - iconSize), self.PositionY, self.PositionX, self.PositionY + iconSize);
+    ExtendBounds(math.min(firstBuffPositionX, self.PositionX - iconSize), self.PositionY + math.min(0, zigzag), self.PositionX, self.PositionY + iconSize + math.max(0, zigzag));
 
     --Update distance if necessary..
     if (settings.show_distance) and ((self.Index ~= 0) or opt('show_self_distance', false)) then

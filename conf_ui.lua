@@ -279,6 +279,8 @@ local function theme_row(s)
     tip('Rescan the themes folder (after adding or removing a theme).');
 end
 
+local ZIGZAG_TEXT = { { 'below', 'Both below' }, { 'zig', 'Zig above' }, { 'zag', 'Zag above' } };
+
 local function page_icons()
     local s, n = gSettings, nil;
     vc.title('Icons', 'size, spacing and theme');
@@ -300,6 +302,23 @@ local function page_icons()
     if (n ~= nil) then s.icon_spacing = n; mark_dirty(); end
     n = slider('row_spacing', 'Row spacing', s.row_spacing or 20, 8, 60, 1, '%d px', 'Distance between party members, top to bottom.');
     if (n ~= nil) then s.row_spacing = n; mark_dirty(); end
+
+    vc.section('ZIGZAG', nil, function()
+        s.icon_zigzag, s.icon_zigzag_offset, s.icon_zigzag_text = false, 8, 'below'; mark_dirty();
+    end);
+    n = switch('icon_zigzag', 'Zigzag icons', s.icon_zigzag == true,
+        'Stagger every other icon up or down. Goes well with icon spacing below 0, so overlapping icons stay easy to tell apart.');
+    if (n ~= nil) then s.icon_zigzag = n; mark_dirty(); end
+    if s.icon_zigzag then
+        local range = math.max(48, (s.size or 16) * 3);
+        n = slider('icon_zigzag_offset', 'Zigzag height', s.icon_zigzag_offset or 8, -range, range, 1, '%d px',
+            'How far every other icon moves: above 0 down, below 0 up. You may need more Row spacing to make room.');
+        if (n ~= nil) then s.icon_zigzag_offset = n; mark_dirty(); end
+        n = seg_row('icon_zigzag_text', 'Timer text', ZIGZAG_TEXT, s.icon_zigzag_text or 'below',
+            'Where the timer text goes. Zig = the icons left in line, Zag = the icons that move. '..
+            'Putting one of them above the icon keeps the labels apart.');
+        if (n ~= nil) then s.icon_zigzag_text = n; mark_dirty(); end
+    end
 
     vc.section('THEME');
     theme_row(s);
