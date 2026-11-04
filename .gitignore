@@ -1,0 +1,5 @@
+# Your own saved themes (made in game): personal, not part of the addon
+savedthemes/*.lua
+
+# Release packages
+*.zip
