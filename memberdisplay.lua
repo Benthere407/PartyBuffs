@@ -330,7 +330,7 @@ function member:Render(testMode)
     end
 
     local iconSize = settings.size;
-    local iconSpacing = opt('icon_spacing', 0);   -- extra pixels between icons
+    local iconSpacing = math.max(opt('icon_spacing', 0), -math.floor(iconSize / 2));   -- extra pixels between icons (below 0 = overlap)
     local firstBuffPositionX = self.PositionX - (#sorted * iconSize) - (math.max(0, #sorted - 1) * iconSpacing);
     local buffPositionX = firstBuffPositionX;
 

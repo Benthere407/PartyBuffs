@@ -295,8 +295,8 @@ local function page_icons()
     end);
     n = slider('size', 'Icon size', s.size or 16, 8, 64, 1, '%d px', 'Size of each buff icon.');
     if (n ~= nil) then s.size = n; mark_dirty(); end
-    n = slider('icon_spacing', 'Icon spacing', s.icon_spacing or 0, 0, 40, 1, '%d px',
-        'Extra space between icons, side to side. Handy for room around timer rings or wide timer text.');
+    n = slider('icon_spacing', 'Icon spacing', s.icon_spacing or 0, -math.floor((s.size or 16) / 2), 40, 1, '%d px',
+        'Extra space between icons, side to side. Handy for room around timer rings or wide timer text.\nBelow 0 the icons overlap (up to half an icon).');
     if (n ~= nil) then s.icon_spacing = n; mark_dirty(); end
     n = slider('row_spacing', 'Row spacing', s.row_spacing or 20, 8, 60, 1, '%d px', 'Distance between party members, top to bottom.');
     if (n ~= nil) then s.row_spacing = n; mark_dirty(); end
