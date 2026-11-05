@@ -1,6 +1,6 @@
 addon.name      = 'PartyBuffs';
 addon.author    = 'Thorny';
-addon.version   = '2.0';
+addon.version   = '2.1';
 addon.desc      = 'Displays party buffs next to the party list, with party TP and target health.';
 addon.link      = 'https://github.com/ThornyFFXI/MiscAshita4';
 
@@ -15,6 +15,7 @@ local imgui = require('imgui');
 local scaling = require('scaling');
 local memberDisplay = require('memberdisplay');
 local buffTimers = require('bufftimers');
+local timerShare = require('timershare');
 local ringOverlay = require('ringoverlay');
 local yunaFont = require('yunafont');
 local tpDisplay = require('tpdisplay');
@@ -99,6 +100,7 @@ local default_settings = T{
     ring_show_unknown = true,     -- dim full ring when a party member's time left is unknown
     learned_durations = T{},      -- [tostring(buff id)] = seconds
     tracked_buffs = T{},          -- [tostring(server id)] = { [tostring(buff id)] = start (os.time) }, kept over reloads
+    share_timers = false,         -- swap exact buff timers with your other clients on this PC
     test_buff_count = 6,          -- sample buffs per member in Test Mode (1-18)
     debuffs_first = false,        -- enfeebles and debuffs go next to the party list
     ring_debuff = false,          -- debuffs get their own plain ring (instead of the timer ring)
@@ -255,6 +257,7 @@ local uiHooks = {
     get_active_buffs   = GetActiveBuffs,
     get_icon_themes    = memberDisplay.GetIconThemes,
     get_rings          = memberDisplay.GetRings,
+    share_status       = timerShare.Status,
     current_job        = CurrentJob,
     save_profile       = SaveProfile,
     load_profile       = LoadProfile,
@@ -285,6 +288,7 @@ ashita.events.register('unload', 'unload_cb', function ()
     end
     tpDisplay.Unload();
     yunaFont.unregister();
+    pcall(timerShare.Close);
     pcall(buffTimers.Save);
     settingLib.save();   -- keep learned buff durations and party members' buff timers
 end)
@@ -525,6 +529,7 @@ ashita.events.register('d3d_present', 'd3d_present_cb', function ()
     local testMode = confUI.is_open[1] and confUI.test_mode[1];
 
     pcall(buffTimers.Update, 0);   -- reads player memory, which can be unavailable while zoning / logging in
+    pcall(timerShare.Update);
     memberDisplay.ResetBounds();
     renderer:Begin();
     for _,member in ipairs(partyMembers) do

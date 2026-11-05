@@ -26,6 +26,7 @@ Put this folder in `addons\partybuffs`, then in game:
   style of the moving end (sparkle, dot or none), the dot size, and blinking when low. You can also show
   rings only when a buff is low.
 - **Timer text:** time left under each icon. You can cap it ("5+") or hide it above a set time.
+- **Exact timers from your other clients:** turn on "Share with my other clients" on the Timer Rings page in each client on your PC, and those characters show exact times instead of estimates. Other players stay estimated.
 - **Range text:** each member's distance, with its own font and position.
 - **Saved Themes:** save the whole look under a name and load it from a dropdown. Every character can use it.
 - **TP and target numbers:** each party's TP and your target's HP%, from the tparty addon. Party 1 moves with the buffs; the alliance parties and the target move on their own. `/tparty` opens these pages.

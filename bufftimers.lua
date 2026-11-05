@@ -11,6 +11,7 @@
 *   If neither is known, or the buff was already up when we first saw the member (e.g. joining a
 *   party), the time left is unknown. Start times are saved on unload so a reload carries on, and
 *   zoning or a member being in another zone doesn't restart them.
+* Your other clients: exact, sent by that client itself (timershare.lua), while it keeps sending.
 --]]
 
 local timers = {};
@@ -23,6 +24,7 @@ local MAX_DURATION  = 3 * 60 * 60;
 local GAP           = 2.0;    -- seconds without an update for a member that count as not watching them
 local EMPTY_GRACE   = 10.0;   -- seconds a member's whole buff list can be empty before we forget their buffs
 local OVERDUE       = 10.0;   -- seconds a buff can outlast its expected duration before its time counts as unknown
+local SHARED_STALE  = 3.0;    -- seconds without a message from a client before going back to estimating
 
 -- Base durations (seconds) for common buffs, used until a better value is learned.
 local BASE_DURATIONS = {
@@ -53,6 +55,7 @@ local loadTime = os.clock();
 local members  = {};   -- [serverId] = { [buffId] = { start, last_seen, unknown } }
 local pending  = {};   -- [serverId] = { [buffId] = time an action applied it }
 local selfFull = {};   -- [buffId] = longest time left seen on you since it appeared
+local shared   = {};   -- [serverId] = { heard, buffs = { [buffId] = { left, full, at } } }, from your other clients
 
 local function Now()
     return os.clock();
@@ -366,10 +369,61 @@ function timers.Save()
     settings.tracked_buffs = out;
 end
 
+----------------------------------------------------------------------------------------------------
+-- Timers from your other clients (timershare.lua)
+----------------------------------------------------------------------------------------------------
+-- Your own timers, to send: [buffId] = seconds left (-1 permanent), [buffId] = full duration
+function timers.GetOwn()
+    return selfLeft, selfFull;
+end
+
+-- Another client's timers: buffs = { [buffId] = { left, full } }, all the timers that client has
+function timers.SetShared(serverId, buffs)
+    local now = Now();
+    local list = {};
+    for id,buff in pairs(buffs) do
+        if (buff.left == -1) or ((buff.left > 0) and (buff.left <= buff.full)) then
+            buff.at = now;
+            list[id] = buff;
+            if (buff.left > 0) then
+                Learn(id, buff.full, false);
+                -- Keep the estimate level with it, so it carries on from here if this client goes quiet
+                local state = members[serverId];
+                local entry = state and state.buffs[id];
+                local duration = GetDuration(id);
+                if (entry ~= nil) and (duration ~= nil) then
+                    entry.start = now - math.max(0, duration - buff.left);
+                    entry.unknown = false;
+                    entry.no_learn = true;
+                end
+            end
+        end
+    end
+    shared[serverId] = { heard = now, buffs = list };
+end
+
+-- A party member's buff as sent by their client: seconds left and full duration (-1 for permanent), or nil
+local function SharedLeft(index, id)
+    local serverId = AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(index);
+    local client = shared[serverId];
+    local buff = client and client.buffs[id];
+    if (buff == nil) or (Now() - client.heard > SHARED_STALE) then
+        return nil;
+    end
+    if (buff.left == -1) then
+        return -1, -1;
+    end
+    return math.max(0, buff.left - (Now() - buff.at)), buff.full;
+end
+
 -- Returns seconds left, -1 for permanent buffs, or nil if unknown.
 function timers.GetRemaining(index, id)
     if (index == 0) then
         return selfLeft[id];
+    end
+    local left = SharedLeft(index, id);
+    if (left ~= nil) then
+        return left;
     end
     local elapsed, duration = MemberElapsed(index, id);
     if (elapsed == nil) then
@@ -386,6 +440,13 @@ function timers.GetFraction(index, id)
         if (left == -1) then return -1; end
         local full = selfFull[id];
         if (full == nil) or (full <= 0) then return nil; end
+        return math.max(0, math.min(1, left / full));
+    end
+
+    local left, full = SharedLeft(index, id);
+    if (left == -1) then
+        return -1;
+    elseif (left ~= nil) then
         return math.max(0, math.min(1, left / full));
     end
 

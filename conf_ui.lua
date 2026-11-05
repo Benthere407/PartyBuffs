@@ -662,6 +662,13 @@ local function page_rings()
     vc.note('Your own buffs use the game\'s exact timers. Party members\' timers are not sent by the server, so they are estimated from when the buff landed (or was recast) and its duration. '..
         'Durations are learned from your own timers and from watching buffs wear off, and saved between sessions. '..
         'Buffs already up when you first saw a member (after loading or zoning) show as unknown until recast.');
+    n = switch('share_timers', 'Share with my other clients', s.share_timers == true,
+        'Your clients on this PC send each other their exact timers, so those characters are exact instead of estimated. Turn this on in every client. Nothing leaves your PC.');
+    if (n ~= nil) then s.share_timers = n; mark_dirty(); end
+    if s.share_timers then
+        vc.stat('Sharing', gHooks.share_status());
+        tip('Other clients show here once they have this on too and have logged in.');
+    end
     local timed, unknown, permanent = 0, 0, 0;
     for _, ring in ipairs(gHooks.get_rings()) do
         if (ring.fraction == nil) then
