@@ -28,6 +28,7 @@ local imgui  = require('imgui');
 local vc     = require('vcmenu');
 local groups = require('buffgroups');
 local savedThemes = require('savedthemes');
+local tpd    = require('tpdisplay');
 
 local C = vc.colors;
 
@@ -47,9 +48,17 @@ ui.invalidate = function()
     ui.version = ui.version + 1;
 end
 
+-- Opens the menu on the TP pages (/tparty)
+ui.open_tp = function()
+    win.open[1] = not win.open[1];
+    win.page = 'tp_display';
+end
+
 local function mark_dirty()
     ui.dirty = true;
 end
+
+local tpPages = require('conf_tp')(mark_dirty);
 
 ----------------------------------------------------------------------------------------------------
 -- Rows: a label on the left, its control lined up at the right
@@ -237,10 +246,11 @@ local function page_about()
     vc.stat('/pb priority add <buff>', 'Draw a buff first', nil, 190);
     vc.stat('Shift + drag', 'Move the buffs on screen', nil, 190);
     vc.section('TEST MODE');
-    vc.note('Test Mode (top of the menu) shows a full party with 6 sample buffs each while this window is open, so you can see the layout, rings and timer text.');
+    vc.note('Test Mode (top of the menu) shows a full party with sample buffs while this window is open, so you can see the layout, rings and timer text.');
     vc.section('CREDITS');
     vc.note(('By %s. %s'):format(addon.author, addon.link));
     vc.note('Font: TeX Gyre Adventor, as used by YunaUI (GUST Font License, see fonts/).');
+    vc.note('TP and target numbers from the tparty addon by atom0s.');
     vc.note('Icon themes from HXUI. The window uses the vcmenu library, inspired by the VanaCore menus by Vekien and Josh.Xero.');
 end
 
@@ -288,10 +298,19 @@ local function page_icons()
 
     vc.section('SHOW');
     n = switch('test_mode', 'Test Mode', ui.test_mode[1],
-        'While this window is open, show a full 6 member party with 6 sample buffs each so you can see the layout. Shift+drag it to move it.');
+        'While this window is open, show a full 6 member party with sample buffs so you can see the layout. Shift+drag it to move it.');
     if (n ~= nil) then ui.test_mode[1] = n; end
+    n = slider('test_buff_count', 'Test Mode buffs', s.test_buff_count or 6, 1, 18, 1, '%d',
+        'How many sample buffs each member shows in Test Mode.');
+    if (n ~= nil) then s.test_buff_count = n; mark_dirty(); end
+    n = slider('test_debuff_count', 'Test Mode debuffs', s.test_debuff_count or 0, 0, 4, 1, '%d',
+        'How many sample debuffs each member shows in Test Mode, on top of the buffs. They start at the far end of the row; turn on Debuffs first to see them move to the front.');
+    if (n ~= nil) then s.test_debuff_count = n; mark_dirty(); end
     n = switch('show_self', 'Show your own buffs', s.show_self, 'Show a row of buffs for yourself too.');
     if (n ~= nil) then s.show_self = n; mark_dirty(); end
+    n = switch('debuffs_first', 'Debuffs first', s.debuffs_first == true,
+        'Enfeebles and debuffs on a player go first in line, next to the party list. Debuffs hidden on the Filters page stay hidden.');
+    if (n ~= nil) then s.debuffs_first = n; mark_dirty(); end
 
     vc.section('ICONS', nil, function()
         s.size, s.icon_spacing, s.row_spacing = 16, 0, 20; mark_dirty();
@@ -368,7 +387,7 @@ local function page_saved()
     end
 
     vc.title('Saved Themes', 'save and load the whole look');
-    vc.note('A saved theme holds the look: icon size, spacing and icon theme, timer rings, timer text and range text. '..
+    vc.note('A saved theme holds the look: icon size, spacing and icon theme, timer rings, timer text, range text and the TP and target numbers. '..
         'Not where the buffs sit on screen, or your filters (those are Profiles). Themes are files in this addon\'s savedthemes folder, so every character can use them.');
 
     vc.section('OPEN', ('%d saved'):format(#names));
@@ -393,6 +412,7 @@ local function page_saved()
         if ok then
             s.saved_theme = gSaved.pick;
             gHooks.apply_font();
+            gHooks.apply_tp();
             mark_dirty();
             saved_say(true, ('Loaded "%s".'):format(gSaved.pick));
         else
@@ -601,6 +621,18 @@ local function page_rings()
     n = switch('ring_show_unknown', 'Ring when time is unknown', s.ring_show_unknown ~= false,
         'Draw a dim full ring on buffs whose time left can\'t be worked out (see TIME LEFT below).');
     if (n ~= nil) then s.ring_show_unknown = n; mark_dirty(); end
+
+    vc.section('DEBUFFS');
+    n = switch('ring_debuff', 'Show debuff rings', s.ring_debuff == true,
+        'Give enfeebles and debuffs their own plain ring instead of the timer ring: full, with no moving end or low warning.');
+    if (n ~= nil) then s.ring_debuff = n; mark_dirty(); end
+    n = slider('ring_debuff_thickness', 'Thickness', s.ring_debuff_thickness or 2, 1, 6, 1, '%d px', 'Debuff ring line thickness.');
+    if (n ~= nil) then s.ring_debuff_thickness = n; mark_dirty(); end
+    n = slider('ring_debuff_gap', 'Gap', s.ring_debuff_gap or 0, -8, 6, 1, '%d px',
+        'Ring size against the icon. 0 = touches the icon\'s edges. Above 0 overlaps the next icon.');
+    if (n ~= nil) then s.ring_debuff_gap = n; mark_dirty(); end
+    n = color_row('ring_debuff_color', 'Colour', s.ring_debuff_color or 0xFFFF4040, 'Colour of the debuff ring.');
+    if (n ~= nil) then s.ring_debuff_color = n; mark_dirty(); end
 
     vc.section('MOVING END');
     local tipStyle = s.ring_tip or ((s.ring_sparkle == false) and 'none' or 'sparkle');
@@ -989,17 +1021,22 @@ local PAGES = {
     filters  = function() page_list('filter'); end,
     priority = function() page_list('priority'); end,
     profiles = page_profiles,
+    tp_display = tpPages.display,
+    tp_layout = tpPages.layout,
+    tp_style = tpPages.style,
+    tp_help = tpPages.help,
 };
 local PAGE_NAME = {
     about = 'About', saved = 'Saved Themes', icons = 'Icons', position = 'Position', range = 'Range Text', range_font = 'Range Text / Font', rings = 'Timer Rings',
     text = 'Timer Text', active = 'Active Buffs', filters = 'Filters', priority = 'Priority', profiles = 'Profiles',
+    tp_display = 'TP / Display', tp_layout = 'TP / Position & Size', tp_style = 'TP / Text Style', tp_help = 'TP / Help',
 };
 
 local function sidebar(nav)
     if nav.head('test', ui.test_mode[1] and 'Stop test' or 'Test Mode', ui.test_mode[1], 'test') then
         ui.test_mode[1] = not ui.test_mode[1];
     end
-    nav.tip('Show a full party with 6 sample buffs each while this window is open. Shift+drag to move it.');
+    nav.tip('Show a full party with sample buffs while this window is open. Shift+drag to move it.');
     nav.gap();
     if nav.head('about', 'About', win.page == 'about') then win.page = 'about'; end
 
@@ -1019,6 +1056,14 @@ local function sidebar(nav)
     if nav.head('refresh', 'Timers', false, 'h_timers') then win.page = 'rings'; end
     if nav.item('Timer Rings', win.page == 'rings', 'rings') then win.page = 'rings'; end
     if nav.item('Timer Text', win.page == 'text', 'text') then win.page = 'text'; end
+
+    nav.gap();
+    if nav.head('spark', 'TP & Target', false, 'h_tp') then win.page = 'tp_display'; end
+    nav.tip('Party TP numbers and target HP%');
+    if nav.item('Display', win.page == 'tp_display', 'tp_display') then win.page = 'tp_display'; end
+    if nav.item('Position & Size', win.page == 'tp_layout', 'tp_layout') then win.page = 'tp_layout'; end
+    if nav.item('Text Style', win.page == 'tp_style', 'tp_style') then win.page = 'tp_style'; end
+    if nav.item('Help', win.page == 'tp_help', 'tp_help') then win.page = 'tp_help'; end
 
     nav.caption('BUFFS');
     if nav.head('star', 'Active Buffs', win.page == 'active', 'active') then win.page = 'active'; end
@@ -1043,7 +1088,7 @@ local WINDOW = {
     on_scale  = function(sc) gSettings.ui_scale = sc; mark_dirty(); end,
     subtitle  = function(page) return PAGE_NAME[page]; end,
     header_right = function()
-        if ui.test_mode[1] then return 'Test Mode', C.gold; end
+        if ui.test_mode[1] or tpd.test then return 'Test Mode', C.gold; end
         return 'v' .. tostring(addon.version), C.mute;
     end,
 };

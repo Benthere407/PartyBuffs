@@ -1,7 +1,7 @@
 addon.name      = 'PartyBuffs';
 addon.author    = 'Thorny';
-addon.version   = '1.13';
-addon.desc      = 'Displays party buffs next to vanilla party list.';
+addon.version   = '2.0';
+addon.desc      = 'Displays party buffs next to the party list, with party TP and target health.';
 addon.link      = 'https://github.com/ThornyFFXI/MiscAshita4';
 
 require('common');
@@ -17,6 +17,7 @@ local memberDisplay = require('memberdisplay');
 local buffTimers = require('bufftimers');
 local ringOverlay = require('ringoverlay');
 local yunaFont = require('yunafont');
+local tpDisplay = require('tpdisplay');
 local confUI = require('conf_ui');
 local settingLib = require('settings');
 local partyMembers = T{};
@@ -98,6 +99,17 @@ local default_settings = T{
     ring_show_unknown = true,     -- dim full ring when a party member's time left is unknown
     learned_durations = T{},      -- [tostring(buff id)] = seconds
     tracked_buffs = T{},          -- [tostring(server id)] = { [tostring(buff id)] = start (os.time) }, kept over reloads
+    test_buff_count = 6,          -- sample buffs per member in Test Mode (1-18)
+    debuffs_first = false,        -- enfeebles and debuffs go next to the party list
+    ring_debuff = false,          -- debuffs get their own plain ring (instead of the timer ring)
+    ring_debuff_thickness = 2,
+    ring_debuff_gap = 0,
+    ring_debuff_color = 0xFFFF4040,
+    test_debuff_count = 0,        -- sample debuffs per member in Test Mode (0-4)
+
+    -- Party TP and target health numbers (tpdisplay.lua)
+    tp = tpDisplay.defaults,
+    tp_imported = false,          -- this character's settings were brought over from the old tparty addon
 
     -- Time left text under each icon ("16m", "50")
     show_timer_text = false,
@@ -145,6 +157,7 @@ local function EnsureSettings()
     settings.exclusions     = settings.exclusions or T{};
     settings.priority       = settings.priority or T{};
     settings.learned_durations = settings.learned_durations or T{};
+    tpDisplay.Import();
 end
 EnsureSettings();
 memberDisplay.RebuildLookups();
@@ -237,6 +250,7 @@ local uiHooks = {
     save               = function() settingLib.save(); end,
     rebuild            = function() memberDisplay.RebuildLookups(); end,
     apply_font         = ApplyFonts,
+    apply_tp           = tpDisplay.ApplyFonts,
     default_exclusions = DEFAULT_EXCLUSIONS,
     get_active_buffs   = GetActiveBuffs,
     get_icon_themes    = memberDisplay.GetIconThemes,
@@ -252,6 +266,7 @@ settingLib.register('settings', 'settings_update', function(newSettings)
     EnsureSettings();
     memberDisplay.RebuildLookups();
     ApplyFonts();
+    tpDisplay.ApplyFonts();
 end);
 
 ashita.events.register('load', 'load_cb', function ()
@@ -261,12 +276,14 @@ ashita.events.register('load', 'load_cb', function ()
         newMember:Initialize(i);
         partyMembers:append(newMember);
     end
+    tpDisplay.Load();
 end)
 
 ashita.events.register('unload', 'unload_cb', function ()
     for _,member in ipairs(partyMembers) do
         member:Destroy();
     end
+    tpDisplay.Unload();
     yunaFont.unregister();
     pcall(buffTimers.Save);
     settingLib.save();   -- keep learned buff durations and party members' buff timers
@@ -292,7 +309,20 @@ end
 
 ashita.events.register('command', 'command_cb', function (e)
     local args = e.command:args();
-    if (#args == 0) or ((string.lower(args[1]) ~= '/pb') and (string.lower(args[1]) ~= '/partybuffs')) then
+    if (#args == 0) then
+        return;
+    end
+
+    -- The old tparty addon's commands
+    if (string.lower(args[1]) == '/tparty') then
+        e.blocked = true;
+        local rest = {};
+        for i = 2,#args do rest[#rest + 1] = args[i]; end
+        tpDisplay.Command(rest, confUI.open_tp);
+        return;
+    end
+
+    if (string.lower(args[1]) ~= '/pb') and (string.lower(args[1]) ~= '/partybuffs') then
         return;
     end
     e.blocked = true;
@@ -504,4 +534,5 @@ ashita.events.register('d3d_present', 'd3d_present_cb', function ()
 
     ringOverlay.Draw(memberDisplay.GetRings(), GetDragOutline());
     confUI.render_config_ui(settings, uiHooks);
+    tpDisplay.Render(testMode);
 end);

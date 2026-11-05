@@ -129,4 +129,18 @@ groups.is_monster_debuff = function(name)
     return matches(name, MON_EXACT, MON_SUFFIXES, MON_PREFIXES);
 end
 
+-- Status ids that are enfeebles or debuffs on a player (from HXUI's status table, less what it
+-- marks but isn't one: Medicine, Pax, Intension, Dread Spikes, Gambit, Level Restriction, the dazes)
+local DEBUFF_IDS = {};
+for id in ('1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,28,29,30,31,128,129,130,131,132,133,' ..
+    '134,135,136,137,138,139,140,141,142,144,145,146,147,148,149,156,168,174,175,186,189,192,193,194,259,260,' ..
+    '261,262,263,264,291,298,299,309,404,557,558,559,560,561,562,563,564,565,566,567,572,576,597,630,631'):gmatch('%d+') do
+    DEBUFF_IDS[tonumber(id)] = true;
+end
+
+-- An enfeeble or debuff, by id or by name (name matching catches ids the list doesn't have, like any "... Down")
+groups.is_debuff = function(id, name)
+    return (DEBUFF_IDS[id] == true) or ((name ~= nil) and groups.is_monster_debuff(name));
+end
+
 return groups;

@@ -1,7 +1,7 @@
 --[[
 * Saved themes: the whole look of PartyBuffs (icon size and spacing, icon theme, timer rings,
-* timer text and range text) as a file, savedthemes\<name>.lua in this addon's folder, so every
-* character can load it.
+* timer text, range text, and the TP and target numbers) as a file, savedthemes\<name>.lua in
+* this addon's folder, so every character can load it.
 *
 * Not part of a theme: where the buffs sit on screen, your own row, the filters and priority
 * lists (those are Profiles), and learned buff durations.
@@ -19,11 +19,25 @@ saved.KEYS = {
     'show_rings', 'ring_thickness', 'ring_gap', 'ring_color', 'ring_gone_color', 'ring_warn',
     'ring_low_percent', 'ring_only_low', 'ring_dot_only_low', 'ring_low_color', 'ring_tip',
     'ring_dot_size', 'ring_show_unknown',
+    'ring_debuff', 'ring_debuff_thickness', 'ring_debuff_gap', 'ring_debuff_color',
     'show_timer_text', 'timer_text_scale', 'timer_text_font', 'timer_text_color', 'timer_text_outline_color',
     'timer_text_offset_x', 'timer_text_offset_y', 'timer_text_cap', 'timer_text_cap_minutes', 'timer_text_cap_hide',
 };
 -- And these from the range text's font (settings.distance_object)
 saved.FONT_KEYS = { 'font_family', 'font_height', 'bold', 'italic', 'color' };
+-- And the TP and target numbers: section of the file -> function giving that table of settings.tp, and its keys
+-- (not which parties are switched on, or shift+drag)
+local TP_BLOCKS = {
+    party       = { function (t) return t.party; end,            { 'tp_ready_color', 'tp_max_color', 'border_size', 'border_color', 'in_front',
+                                                                   'tp_fx', 'tp_fx_mode', 'tp_fx_secs', 'tp_fx_color', 'tp_fx_size' } },
+    party_font  = { function (t) return t.party.font; end,       { 'bold', 'italic', 'color' } },
+    target      = { function (t) return t.target; end,           { 'border_size', 'border_color' } },
+    target_font = { function (t) return t.target.font; end,      { 'bold', 'italic', 'color' } },
+    main        = { function (t) return t.layout.main; end,      { 'x', 'y', 'size', 'spacing' } },
+    alliance1   = { function (t) return t.layout.alliance1; end, { 'x', 'y', 'size', 'spacing' } },
+    alliance2   = { function (t) return t.layout.alliance2; end, { 'x', 'y', 'size', 'spacing' } },
+    target_pos  = { function (t) return t.layout.target; end,    { 'x', 'y', 'size' } },
+};
 
 function saved.dir()
     return (tostring(addon.path):gsub('[\\/]+$', '')) .. '\\savedthemes\\';
@@ -99,6 +113,14 @@ function saved.save(name, settings)
     for _, k in ipairs(saved.KEYS) do data.look[k] = settings[k]; end
     local fo = settings.distance_object or {};
     for _, k in ipairs(saved.FONT_KEYS) do data.range_font[k] = fo[k]; end
+    if (settings.tp ~= nil) then
+        data.tp = {};
+        for block, b in pairs(TP_BLOCKS) do
+            local from, out = b[1](settings.tp), {};
+            for _, k in ipairs(b[2]) do out[k] = from[k]; end
+            data.tp[block] = out;
+        end
+    end
 
     local dir = saved.dir();
     if not ashita.fs.exists(dir) then
@@ -127,6 +149,16 @@ function saved.load(name, settings)
     if (type(data.range_font) == 'table') and (settings.distance_object ~= nil) then
         for _, k in ipairs(saved.FONT_KEYS) do
             if (data.range_font[k] ~= nil) then settings.distance_object[k] = data.range_font[k]; end
+        end
+    end
+    if (type(data.tp) == 'table') and (settings.tp ~= nil) then
+        for block, b in pairs(TP_BLOCKS) do
+            local src, to = data.tp[block], b[1](settings.tp);
+            if (type(src) == 'table') then
+                for _, k in ipairs(b[2]) do
+                    if (src[k] ~= nil) and (type(src[k]) == type(to[k])) then to[k] = src[k]; end
+                end
+            end
         end
     end
     return true;

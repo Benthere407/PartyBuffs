@@ -167,6 +167,14 @@ local function draw_ring(draw, ring, t)
     end
 end
 
+-- A debuff's own ring: plain and full, no timer
+local function draw_debuff_ring(draw, ring)
+    local thickness = opt('ring_debuff_thickness', 2);
+    local r = (ring.size / 2) + opt('ring_debuff_gap', 0) - (thickness / 2);
+    local cx, cy = ring.x + (ring.size / 2), ring.y + (ring.size / 2);
+    draw_arc(draw, cx, cy, r, TOP, TOP + TWO_PI, with_alpha(argb_to_v4(opt('ring_debuff_color', 0xFFFF4040)), 1.0), thickness);
+end
+
 -- Time left as shown under the icon: "16m", "1m", "50" (or "5+" / nothing while above the cap, if enabled)
 local function format_time(seconds)
     if opt('timer_text_cap', false) then
@@ -239,8 +247,11 @@ function overlay.Draw(rings, outline)
     if imgui.Begin('##partybuffs_overlay', true, WINDOW_FLAGS) then
         local draw = imgui.GetWindowDrawList();
         local t = os.clock();
-        if opt('show_rings', false) then
-            for _,ring in ipairs(rings) do
+        local showRings = opt('show_rings', false);
+        for _,ring in ipairs(rings) do
+            if ring.debuff then
+                draw_debuff_ring(draw, ring);
+            elseif showRings then
                 draw_ring(draw, ring, t);
             end
         end

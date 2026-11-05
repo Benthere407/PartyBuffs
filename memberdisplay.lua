@@ -1,6 +1,7 @@
 local fonts = require('fonts');
 local scaling = require('scaling');
 local buffTimers = require('bufftimers');
+local groups = require('buffgroups');
 
 local partyBuffs = AshitaCore:GetPointerManager():Get('party.statusicons');
 partyBuffs = ashita.memory.read_uint32(partyBuffs);
@@ -34,6 +35,16 @@ local function BuffKey(id)
         keyCache[id] = key;
     end
     return key;
+end
+
+local debuffCache = {};
+local function IsDebuff(id)
+    local v = debuffCache[id];
+    if (v == nil) then
+        v = groups.is_debuff(id, AshitaCore:GetResourceManager():GetString('buffs.names', id));
+        debuffCache[id] = v;
+    end
+    return v;
 end
 
 local function LoadStatusIconFromResource(statusId)
@@ -150,8 +161,10 @@ local function GetBuffs(index)
     return buffs;
 end
 
--- Sample buffs used by the config UI's test mode (Protect, Shell, Haste, Regen, Refresh, Stoneskin).
-local TEST_BUFFS = { 40, 41, 33, 42, 43, 37 };
+-- Sample buffs used by the config UI's test mode: Protect, Shell, Haste, Regen, Refresh, Stoneskin, then
+-- Blink, Aquaveil, Phalanx, Reraise, an enspell, a barspell and songs. The first test_buff_count are shown.
+local TEST_BUFFS = { 40, 41, 33, 42, 43, 37, 36, 39, 116, 113, 94, 100, 195, 196, 197, 198, 199, 200 };
+local TEST_DEBUFFS = { 4, 13, 3, 6 };   -- Paralysis, Slow, Poison, Silence
 
 -- Screen rectangle covering everything drawn this frame (used for shift+drag hit testing).
 local bounds = nil;
@@ -295,8 +308,13 @@ function member:Render(testMode)
     if (testMode) then
         -- Rotate the sample list per member so each row looks a little different
         buffs = T{};
-        for i = 1,#TEST_BUFFS do
-            buffs:append(TEST_BUFFS[((i + self.Index - 1) % #TEST_BUFFS) + 1]);
+        -- Debuffs ahead of the buffs: the far end of the row until Debuffs first moves them
+        for i = 1,math.min(#TEST_DEBUFFS, opt('test_debuff_count', 0)) do
+            buffs:append(TEST_DEBUFFS[i]);
+        end
+        local count = math.max(1, math.min(#TEST_BUFFS, opt('test_buff_count', 6)));
+        for i = 1,count do
+            buffs:append(TEST_BUFFS[((i + self.Index - 1) % count) + 1]);
         end
     else
         buffs = GetBuffs(self.Index);
@@ -329,6 +347,22 @@ function member:Render(testMode)
         end
     end
 
+    -- Debuffs first: enfeebles and debuffs move next to the party list (the right end of the row)
+    if opt('debuffs_first', false) then
+        local others, debuffs = T{}, T{};
+        for _,buff in ipairs(sorted) do
+            if IsDebuff(buff) then
+                debuffs:append(buff);
+            else
+                others:append(buff);
+            end
+        end
+        for _,buff in ipairs(debuffs) do
+            others:append(buff);
+        end
+        sorted = others;
+    end
+
     local iconSize = settings.size;
     local iconSpacing = math.max(opt('icon_spacing', 0), -math.floor(iconSize / 2));   -- extra pixels between icons (below 0 = overlap)
     local firstBuffPositionX = self.PositionX - (#sorted * iconSize) - (math.max(0, #sorted - 1) * iconSpacing);
@@ -342,7 +376,8 @@ function member:Render(testMode)
     local moveFirst = (opt('icon_zigzag_first', 'top') == 'top') == (zigzag < 0);
 
     --Draw member buffs..
-    local showTimers = opt('show_rings', false) or opt('show_timer_text', false);
+    local debuffRings = opt('ring_debuff', false);
+    local showTimers = opt('show_rings', false) or opt('show_timer_text', false) or debuffRings;
     for slot,buff in ipairs(sorted) do
         -- Counted from the right, next to the party list, so every row's zigzag lines up there
         -- whatever its number of buffs
@@ -369,7 +404,8 @@ function member:Render(testMode)
                 -- overlapping icons in a straight line: every other label a line lower (zigzag icons stagger them already)
                 zig = (iconSpacing < 0) and (zigzag == 0) and (fromRight % 2 == 0),
                 -- zigzag icons: the timer text of the zig (in line) or zag (moved) icons can go above them
-                above = (zigzag ~= 0) and (textAbove == (moved and 'zag' or 'zig')) });
+                above = (zigzag ~= 0) and (textAbove == (moved and 'zag' or 'zig')),
+                debuff = debuffRings and IsDebuff(buff) });
         end
         buffPositionX = buffPositionX + iconSize + iconSpacing;
     end

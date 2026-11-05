@@ -14,6 +14,7 @@ It includes work from these projects:
   > notice and this permission notice shall be included in all copies or substantial portions of the
   > Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 
+- **tparty** by atom0s (Ashita Development Team), GPL-3.0: the party TP and target HP% numbers (`tpdisplay.lua`, `conf_tp.lua`).
 - **Status icon themes** (`themes/XIView`, `themes/XIView-Yuna`) from HXUI, GPL-3.0.
 - **TeX Gyre Adventor** (`fonts/`), as used by YunaUI, under the GUST Font License
   (see `fonts/GUST-texgyreadventor.txt`).
