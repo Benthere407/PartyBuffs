@@ -311,7 +311,8 @@ function member:Render(testMode)
     self.PositionX = scaling.window.w - scaling.scale_width(135) + scaling.scale_width(opt('list_offset_x', 0));
     self.BasePositionY = scaling.window.h - scaling.scale_height(40) + scaling.scale_height(opt('list_offset_y', 0));
 
-    local partyCount = testMode and 6 or partyMgr:GetAlliancePartyMemberCount1();
+    -- Growing down: rows always sit where a full party's would, so the first one never moves
+    local partyCount = (testMode or (opt('list_grow', 'up') == 'down')) and 6 or partyMgr:GetAlliancePartyMemberCount1();
     self.PositionY = self.BasePositionY - (((partyCount - 1) - self.Index) * rowSpacing);
 
     --Get member buffs..
@@ -389,6 +390,7 @@ function member:Render(testMode)
     --Draw member buffs..
     local debuffRings = opt('ring_debuff', false);
     local showTimers = opt('show_rings', false) or opt('show_timer_text', false) or debuffRings;
+    local knownOnly = opt('timer_text_known_only', false);
     local frontDraw = opt('front_icons', false) and imgui.GetForegroundDrawList() or nil;   -- in front of the party frames
     local copies = {};   -- how many of each buff so far: each copy of a buff has its own timer
     for slot,buff in ipairs(sorted) do
@@ -409,6 +411,7 @@ function member:Render(testMode)
         end
         if (showTimers) then
             local fraction, remaining;
+            local assumed = false;   -- no timer text for this one (its ring stays)
             if (testMode) then
                 -- Each sample buff counts down over 20-45s on a loop (one row in minutes to show both formats)
                 local period = 20 + (((slot * 7) + (self.Index * 5)) % 26);
@@ -418,8 +421,9 @@ function member:Render(testMode)
             else
                 fraction = buffTimers.GetFraction(self.Index, buff, nth);
                 remaining = buffTimers.GetRemaining(self.Index, buff, nth);
+                assumed = knownOnly and (not buffTimers.IsKnown(self.Index, buff));
             end
-            table.insert(rings, { x = buffPositionX, y = iconY, size = iconSize, fraction = fraction, remaining = remaining, seed = (self.Index * 0.37) + (slot * 0.61),
+            table.insert(rings, { x = buffPositionX, y = iconY, size = iconSize, fraction = fraction, remaining = remaining, assumed = assumed, seed = (self.Index * 0.37) + (slot * 0.61),
                 -- overlapping icons in a straight line: every other label a line lower (zigzag icons stagger them already)
                 zig = (iconSpacing < 0) and (zigzag == 0) and (fromRight % 2 == 0),
                 -- zigzag icons: the timer text of the zig (in line) or zag (moved) icons can go above them

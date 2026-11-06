@@ -13,7 +13,7 @@ local saved = {};
 
 -- The look settings a theme holds
 saved.KEYS = {
-    'size', 'icon_spacing', 'row_spacing', 'icon_theme', 'icon_zigzag', 'icon_zigzag_offset', 'icon_zigzag_text', 'icon_zigzag_first',
+    'list_grow', 'size', 'icon_spacing', 'row_spacing', 'icon_theme', 'icon_zigzag', 'icon_zigzag_offset', 'icon_zigzag_text', 'icon_zigzag_first',
     'front_icons', 'front_distance',
     'show_distance', 'show_self_distance', 'distance_decimals', 'distance_fixed',
     'distance_offset_x', 'distance_offset_y', 'distance_outline_color', 'distance_outline_thickness',
@@ -23,6 +23,7 @@ saved.KEYS = {
     'ring_debuff', 'ring_debuff_thickness', 'ring_debuff_gap', 'ring_debuff_color',
     'show_timer_text', 'timer_text_scale', 'timer_text_font', 'timer_text_color', 'timer_text_outline_color',
     'timer_text_offset_x', 'timer_text_offset_y', 'timer_text_cap', 'timer_text_cap_minutes', 'timer_text_cap_hide',
+    'timer_text_known_only',
 };
 -- And these from the range text's font (settings.distance_object)
 saved.FONT_KEYS = { 'font_family', 'font_height', 'bold', 'italic', 'color' };

@@ -22,10 +22,11 @@ Put this folder in `addons\partybuffs`, then in game:
 ## Features
 
 - **Icon themes:** XIView and XIView-Yuna, with icon size and spacing.
+- **Grow up or down:** the top of the Icons page sets which way the list adds members.
 - **Timer rings:** a ring around each icon that runs down as the buff wears off. You can set the colors, the
   style of the moving end (sparkle, dot or none), the dot size, and blinking when low. You can also show
   rings only when a buff is low.
-- **Timer text:** time left under each icon. You can cap it ("5+") or hide it above a set time.
+- **Timer text:** time left under each icon. You can cap it ("5+"), hide it above a set time, or show it only for known durations.
 - **Exact timers from your other clients:** your clients on the same PC share their exact times and real buff lists, so those characters aren't estimated. It's on by default, and "Share with my other clients" on the Timer Rings page turns it off. Other players stay estimated.
 - **Better estimates:** buff lengths are measured per caster, job and spell when a cast lands on one of your characters, and all your characters share them. Composure is kept apart, and a buff leaves its icon as soon as its wear-off message arrives.
 - **Draw In Front:** separate switches on the Display menu put Icons, TP, Distance and HP over the party frames.

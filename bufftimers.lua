@@ -16,6 +16,7 @@
 *   zoning or a member being in another zone doesn't restart them.
 *
 * A length is measured when a cast seen in an action packet lands on a character with exact timers.
+* Timers counted as known (timers.IsKnown) are the exact ones and casts with a length from 1. above.
 * Enhancing spells under Composure last about 3 times longer on the caster, so those are kept apart.
 --]]
 
@@ -70,8 +71,8 @@ local LOSE_MESSAGES = { [64] = true, [83] = true, [159] = true, [168] = true, [2
                         [531] = true, [647] = true, [805] = true, [806] = true };
 
 local loadTime = os.clock();
-local members  = {};   -- [serverId] = { [buffId] = { start, last_seen, unknown, duration, actor, action } }
-local pending  = {};   -- [serverId] = { [buffId] = { at, duration, actor, action }, an action applied it }
+local members  = {};   -- [serverId] = { [buffId] = { start, last_seen, unknown, duration, known, actor, action } }
+local pending  = {};   -- [serverId] = { [buffId] = { at, duration, known, actor, action }, an action applied it }
 local selfFull = {};   -- [buffId] = longest time left seen on you since it appeared
 local shared   = {};   -- [serverId] = { heard, list, arr = { [buffId] = { seconds left, one per icon } }, buffs = { [buffId] = { full, longest } } }
 local casts    = {};   -- { { t, target, buff, actor, action, enhancing, name, job, composure } }, waiting for an exact timer
@@ -319,7 +320,8 @@ local function CasterKey(cast, where)
     return ('%s:%d:%s:%s'):format(cast.name, cast.job, cast.action, where);
 end
 
--- The length a cast should last, or nil if nothing better than the buff's own length is known
+-- The length a cast should last, or nil if nothing better than the buff's own length is known.
+-- Second result: true if that length was measured for this caster
 local function FindLength(cast)
     local length = nil;
     if (cast.name ~= nil) then
@@ -335,7 +337,10 @@ local function FindLength(cast)
             length = onSelf or onOther or third;
         end
     end
-    return length or durations.get('*:' .. cast.action);
+    if (length ~= nil) then
+        return length, true;
+    end
+    return durations.get('*:' .. cast.action), false;
 end
 
 -- A cast landed on someone with exact timers: keep its real length
@@ -358,6 +363,7 @@ local function Measured(cast, seconds)
         if (entry ~= nil) and (entry.actor == cast.actor) and (entry.action == cast.action)
             and (math.abs(entry.start - cast.t) < MATCH_WINDOW) then
             entry.duration = usual;
+            entry.known = true;
         end
     end
 end
@@ -519,6 +525,7 @@ local function UpdateMember(serverId, buffs)
             end
             if (cast ~= nil) then
                 entry.duration, entry.actor, entry.action = cast.duration, cast.actor, cast.action;
+                entry.known = cast.known;
             end
             state.buffs[id] = entry;
         elseif (cast ~= nil) and (cast.at > entry.start) then
@@ -526,11 +533,13 @@ local function UpdateMember(serverId, buffs)
             entry.unknown = false;
             entry.no_learn = nil;
             entry.duration, entry.actor, entry.action = cast.duration, cast.actor, cast.action;
+            entry.known = cast.known;
         elseif recast[id] then
             entry.start = now;         -- recast where we couldn't see the action (moved to the end of their list)
             entry.unknown = false;
             entry.no_learn = nil;
             entry.duration, entry.actor, entry.action = nil, nil, nil;
+            entry.known = nil;
         end
         applied[id] = nil;
         entry.last_seen = now;
@@ -671,6 +680,7 @@ function timers.SetShared(serverId, arr, fulls, list)
                 if (entry ~= nil) then
                     entry.start = now - (full - longest);
                     entry.duration = full;
+                    entry.known = true;
                     entry.unknown = false;
                     entry.no_learn = true;
                 end
@@ -748,6 +758,16 @@ function timers.GetFraction(index, id, nth)
         return nil;
     end
     return math.max(0, math.min(1, 1 - (elapsed / duration)));
+end
+
+-- True if a buff's timer is exact or uses a length measured for its caster, not an assumed length.
+function timers.IsKnown(index, id)
+    if (index == 0) or (SharedLeft(index, id) ~= nil) then
+        return true;
+    end
+    local state = members[AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(index)];
+    local entry = state and state.buffs[id];
+    return (entry ~= nil) and (entry.known == true);
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -837,8 +857,9 @@ function timers.HandleAction(data)
                         composure = enhancing and (actor == targetId) and HasComposure(actor),
                     };
                     casts[#casts + 1] = cast;
+                    local length, known = FindLength(cast);
                     pending[targetId] = pending[targetId] or {};
-                    pending[targetId][param] = { at = now, duration = FindLength(cast), actor = actor, action = cast.action };
+                    pending[targetId][param] = { at = now, duration = length, known = known, actor = actor, action = cast.action };
                     Log('cast: %s action %s buff %d on %s length %s composure %s', tostring(name), cast.action, param, tostring(targetId),
                         tostring(pending[targetId][param].duration), tostring(cast.composure));
                     if (gone[targetId] ~= nil) then

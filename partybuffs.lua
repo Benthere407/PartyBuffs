@@ -1,6 +1,6 @@
 addon.name      = 'PartyBuffs';
 addon.author    = 'Thorny';
-addon.version   = '2.2';
+addon.version   = '2.3';
 addon.desc      = 'Displays party buffs next to the party list, with party TP and target health.';
 addon.link      = 'https://github.com/ThornyFFXI/MiscAshita4';
 
@@ -128,6 +128,7 @@ local default_settings = T{
     timer_text_cap = false,        -- show "5+" instead of the time while more than the cap is left
     timer_text_cap_minutes = 5,
     timer_text_cap_hide = false,   -- above the cap show nothing instead of "5+"
+    timer_text_known_only = false, -- no text on timers using an assumed length
     exclusions = T{},
     priority = T{},
 
@@ -138,6 +139,7 @@ local default_settings = T{
     row_spacing = 20,
     list_offset_x = 0,
     list_offset_y = 0,
+    list_grow = 'up',   -- 'up': the last member stays put; 'down': the first member stays put
 
     -- Range text placement
     distance_fixed = false,

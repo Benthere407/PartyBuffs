@@ -291,12 +291,16 @@ end
 
 local ZIGZAG_TEXT = { { 'below', 'Both below' }, { 'zig', 'Zig above' }, { 'zag', 'Zag above' } };
 local ZIGZAG_FIRST = { { 'top', 'Top' }, { 'bottom', 'Bottom' } };
+local LIST_GROW = { { 'up', 'Grow up' }, { 'down', 'Grow down' } };
 
 local function page_icons()
     local s, n = gSettings, nil;
     vc.title('Icons', 'size, spacing and theme');
 
     vc.section('SHOW');
+    n = seg_row('list_grow', 'Direction', LIST_GROW, s.list_grow or 'up',
+        'Grow up: the last member stays put and the list adds upward, like the game\'s party list. Grow down: you stay put and members add below you. Party 1 TP numbers follow.');
+    if (n ~= nil) then s.list_grow = n; mark_dirty(); end
     n = switch('test_mode', 'Test Mode', ui.test_mode[1],
         'While this window is open, show a full 6 member party with sample buffs so you can see the layout. Shift+drag it to move it.');
     if (n ~= nil) then ui.test_mode[1] = n; end
@@ -728,6 +732,9 @@ local function page_timer_text()
     n = switch('show_timer_text', 'Show timer text', s.show_timer_text,
         'Show the time left under each icon, like the game\'s status list (16m, 1m, 50). Works with or without rings.');
     if (n ~= nil) then s.show_timer_text = n; mark_dirty(); end
+    n = switch('timer_text_known_only', 'Known durations only', s.timer_text_known_only,
+        'Show text only on exact timers (you and your other clients) and casts with a length measured for that caster. Assumed or unknown lengths get no text. Rings stay on.');
+    if (n ~= nil) then s.timer_text_known_only = n; mark_dirty(); end
     vc.note('You may need more Row spacing (Icons page) to make room under the icons.');
     n = seg_row('timer_text_font', 'Font', TEXT_FONTS, s.timer_text_font or 'yuna',
         'YunaUI: TeX Gyre Adventor, as in YunaUI (needs VanaCore; elsewhere the ImGui font shows). ImGui: the plain overlay font.');

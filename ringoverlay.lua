@@ -206,8 +206,8 @@ local OUTLINE_DIRS = { { -1, -1 }, { 0, -1 }, { 1, -1 }, { -1, 0 }, { 1, 0 }, { 
 
 local function draw_timer_text(draw, ring)
     local left = ring.remaining;
-    if (left == nil) or (left <= 0) then
-        return;   -- unknown, permanent (-1) or expired
+    if (left == nil) or (left <= 0) or ring.assumed then
+        return;   -- unknown, permanent (-1), expired or an assumed length
     end
     local text = format_time(left);
     if (text == nil) then

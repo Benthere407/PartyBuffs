@@ -145,7 +145,10 @@ end
 local function slot_base(x, members)
     local L = settings.tp.layout;
     if (x <= 6) then
-        -- Party 1 moves with the buff list
+        -- Party 1 moves with the buff list, and grows the same way
+        if (settings.list_grow == 'down') then
+            members = 6;
+        end
         return -95 + L.main.x + (settings.list_offset_x or 0),
             -34 - L.main.spacing * (6 - x) + L.main.spacing * (6 - members) + L.main.y + (settings.list_offset_y or 0);
     elseif (x <= 12) then
