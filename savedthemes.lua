@@ -14,6 +14,7 @@ local saved = {};
 -- The look settings a theme holds
 saved.KEYS = {
     'size', 'icon_spacing', 'row_spacing', 'icon_theme', 'icon_zigzag', 'icon_zigzag_offset', 'icon_zigzag_text', 'icon_zigzag_first',
+    'front_icons', 'front_distance',
     'show_distance', 'show_self_distance', 'distance_decimals', 'distance_fixed',
     'distance_offset_x', 'distance_offset_y', 'distance_outline_color', 'distance_outline_thickness',
     'show_rings', 'ring_thickness', 'ring_gap', 'ring_color', 'ring_gone_color', 'ring_warn',
@@ -31,7 +32,7 @@ local TP_BLOCKS = {
     party       = { function (t) return t.party; end,            { 'tp_ready_color', 'tp_max_color', 'border_size', 'border_color', 'in_front',
                                                                    'tp_fx', 'tp_fx_mode', 'tp_fx_secs', 'tp_fx_color', 'tp_fx_size' } },
     party_font  = { function (t) return t.party.font; end,       { 'bold', 'italic', 'color' } },
-    target      = { function (t) return t.target; end,           { 'border_size', 'border_color' } },
+    target      = { function (t) return t.target; end,           { 'border_size', 'border_color', 'in_front' } },
     target_font = { function (t) return t.target.font; end,      { 'bold', 'italic', 'color' } },
     main        = { function (t) return t.layout.main; end,      { 'x', 'y', 'size', 'spacing' } },
     alliance1   = { function (t) return t.layout.alliance1; end, { 'x', 'y', 'size', 'spacing' } },

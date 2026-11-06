@@ -36,7 +36,7 @@ tpd.defaults = T{
         tp_max_color = 0xFFFFC840,      -- TP 2001 and up.
         border_size = 0,                -- Text border thickness in pixels (0 = off).
         border_color = 0xFF000000,
-        in_front = true,                -- Draw party TP and target HP% in front of ImGui windows (YunaUI's frames).
+        in_front = true,                -- Draw party TP in front of ImGui windows (YunaUI's frames). target.in_front does the same for HP%.
         tp_fx = 'none',                 -- Effect when TP reaches 1000: none, blink, sparkle or both.
         tp_fx_mode = 'timed',           -- timed = for tp_fx_secs seconds, always = for as long as TP is 1000+.
         tp_fx_secs = 3,
@@ -428,6 +428,9 @@ end
 --]]
 local function front_face(font)
     local file = (font.bold and font.italic and 'arialbi') or (font.bold and 'arialbd') or (font.italic and 'ariali') or 'arial';
+    if (font.font_family == 'Comic Sans MS') then
+        file = (font.bold and font.italic and 'comicz') or (font.bold and 'comicbd') or (font.italic and 'comici') or 'comic';
+    end
     local e = front_faces[file];
     if (e == nil) then
         local path = ('%s\\Fonts\\%s.ttf'):format(os.getenv('WINDIR') or 'C:\\Windows', file);
@@ -474,6 +477,12 @@ local function draw_front(dl, text, color, x, y, height, font, block, alpha)
         end
     end
     dl:AddText(face, px, { x, y }, u32(fade(color, alpha)), text);
+end
+
+-- For other text that can go in front (the range text)
+tpd.can_front = can_front;
+function tpd.draw_text(text, color, x, y, height, font, block)
+    draw_front(imgui.GetForegroundDrawList(), text, color, x, y, height, font, block, 1);
 end
 
 --[[
@@ -576,8 +585,9 @@ function tpd.Render(testMode)
 
     -- In front of other windows: the font objects stay (see-through) so shift+drag still works..
     local front = can_front and s.party.in_front;
+    local front_target = can_front and s.target.in_front;
     local front_dl = nil;
-    if (front) then
+    if (front or front_target) then
         front_dl = imgui.GetForegroundDrawList();
     end
 
@@ -620,9 +630,9 @@ function tpd.Render(testMode)
         else
             tparty.font_target.text = '';
         end
-        tparty.font_target.color = front and FRONT_HANDLE or s.target.font.color;
-        border_update(0, not front, tparty.font_target.text, tpx, tpy, s.target, 1);
-        if (front) then
+        tparty.font_target.color = front_target and FRONT_HANDLE or s.target.font.color;
+        border_update(0, not front_target, tparty.font_target.text, tpx, tpy, s.target, 1);
+        if (front_target) then
             draw_front(front_dl, tparty.font_target.text, s.target.font.color, tpx, tpy, tparty.font_target.font_height, s.target.font, s.target, 1);
         end
     end
@@ -852,6 +862,7 @@ end
 --]]
 function tpd.Reset()
     settings.tp = tpd.defaults:copy(true);
+    settings.tp.target.in_front = settings.tp.party.in_front;
     tpd.ApplyFonts();
     settingLib.save();
 end

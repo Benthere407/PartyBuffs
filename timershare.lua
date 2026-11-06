@@ -1,150 +1,115 @@
 --[[
-* Shares exact buff timers between your own clients on this PC.
+* Shares exact buff timers and buff lists between your own clients on this PC.
 *
-* Each client knows its own timers exactly, so with this on it sends them to the others about twice
-* a second, and shows exact times for those characters instead of estimates. A client takes the first
-* free port of a small range on 127.0.0.1 and sends to every other port of it, so there is nothing to
-* set up and nothing leaves the PC. Both clients need the option on.
+* Each client knows its own buffs exactly, so with this on it sends them to the others about twice
+* a second, and shows exact times for those characters instead of estimates. It goes through VanaCore's
+* messages between clients on this PC (vana.ipc), so there is nothing to set up and nothing leaves the
+* PC. Both clients need the option on.
 *
-* Message: PBS1|<server id>|<buff id>,<seconds left>,<full duration>|...   (left -1 = permanent)
+* Messages: PBS2|<server id>|L<buff ids in order>|<buff id>,<full duration>,<seconds left>,...|...   (left -1 = permanent)
+*           PBD2|<durations.lua key>=<seconds>|...   (new buff lengths)
 --]]
 
 local buffTimers = require('bufftimers');
+local durations = require('durations');
 
 local share = {};
 
-local FIRST_PORT = 47620;
-local PORT_COUNT = 18;      -- one per client
-local HOST       = '127.0.0.1';
-local TAG        = 'PBS1';
-local POLL_EVERY = 0.1;     -- seconds between reads of the socket
+local TAG        = 'PBS2';
+local TAG_LENGTHS = 'PBD2';
 local SEND_EVERY = 0.5;     -- seconds between sends
 local PEER_GONE  = 3.0;     -- seconds without a message before a client no longer counts as connected
-local RETRY_EVERY = 5.0;    -- seconds between tries at opening the socket
-local MAX_READS  = 64;      -- messages read in one go
+local MAX_LENGTHS = 30;     -- new buff lengths in one message
 
-local sock, port, failed = nil, nil, nil;
-local lastPoll, lastSend, lastTry = 0, 0, -RETRY_EVERY;
+local available = (rawget(_G, 'vana') ~= nil) and (vana.ipc ~= nil);
+local lastSend = 0;
 local peers = {};   -- [serverId] = time last heard from
-
-local function Open()
-    failed = nil;
-    local ok, socket = pcall(require, 'socket');
-    if (not ok) then
-        failed = 'LuaSocket could not load';
-        return;
-    end
-    for p = FIRST_PORT,FIRST_PORT + PORT_COUNT - 1 do
-        local s = socket.udp();
-        if (s ~= nil) then
-            s:settimeout(0);
-            if s:setsockname(HOST, p) then
-                sock, port = s, p;
-                return;
-            end
-            s:close();
-        end
-    end
-    failed = 'No free port';
-end
-
-local function Close()
-    if (sock ~= nil) then
-        sock:close();
-    end
-    sock, port, failed = nil, nil, nil;
-    lastTry = -RETRY_EVERY;
-    peers = {};
-end
 
 local function Send()
     local me = AshitaCore:GetMemoryManager():GetParty():GetMemberServerId(0);
     if (me == 0) then
         return;
     end
-    local out = { TAG, tostring(me) };
-    local lefts, fulls = buffTimers.GetOwn();
-    for id,left in pairs(lefts) do
-        if (left == -1) then
-            out[#out + 1] = ('%d,-1,-1'):format(id);
-        elseif (left > 0) and (fulls[id] ~= nil) then
-            out[#out + 1] = ('%d,%.1f,%.1f'):format(id, left, fulls[id]);
+    local arr, fulls, list = buffTimers.GetOwn();
+    local out = { TAG, tostring(me), 'L' .. table.concat(list, ',') };
+    for id,lefts in pairs(arr) do
+        local text = {};
+        for i,left in ipairs(lefts) do
+            text[i] = (left == -1) and '-1' or ('%.1f'):format(left);
         end
+        out[#out + 1] = ('%d,%.1f,%s'):format(id, fulls[id] or 0, table.concat(text, ','));
     end
-    local message = table.concat(out, '|');
-    for p = FIRST_PORT,FIRST_PORT + PORT_COUNT - 1 do
-        if (p ~= port) then
-            sock:sendto(message, HOST, p);
+    vana.ipc.send(table.concat(out, '|'));
+
+    local lengths = durations.take(MAX_LENGTHS);
+    if (#lengths > 0) then
+        local parts = { TAG_LENGTHS };
+        for _,item in ipairs(lengths) do
+            parts[#parts + 1] = ('%s=%d'):format(item[1], item[2]);
         end
+        vana.ipc.send(table.concat(parts, '|'));
     end
 end
 
-local function Read(message, now)
+local function ReadLengths(message)
+    for key,seconds in message:gmatch('|([%w%*:%.]+)=(%d+)') do
+        durations.receive(key, tonumber(seconds));
+    end
+end
+
+local function Read(message)
+    if (message:sub(1, #TAG_LENGTHS) == TAG_LENGTHS) then
+        ReadLengths(message);
+        return;
+    end
     local serverId, rest = message:match('^' .. TAG .. '|(%d+)(.*)$');
     serverId = tonumber(serverId);
     if (serverId == nil) then
         return;
     end
-    local buffs = {};
-    for id,left,full in rest:gmatch('|(%d+),(%-?[%d%.]+),(%-?[%d%.]+)') do
-        id, left, full = tonumber(id), tonumber(left), tonumber(full);
-        if (id ~= nil) and (left ~= nil) and (full ~= nil) then
-            buffs[id] = { left = left, full = full };
+    local list = {};
+    for id in (rest:match('^|L([%d,]*)') or ''):gmatch('%d+') do
+        list[#list + 1] = tonumber(id);
+    end
+    local arr, fulls = {}, {};
+    for id,full,lefts in rest:gmatch('|(%d+),([%d%.]+),([%-%d%.,]+)') do
+        id, full = tonumber(id), tonumber(full);
+        if (id ~= nil) and (full ~= nil) then
+            local items = {};
+            for left in lefts:gmatch('%-?[%d%.]+') do
+                items[#items + 1] = tonumber(left);
+            end
+            arr[id], fulls[id] = items, full;
         end
     end
-    peers[serverId] = now;
-    buffTimers.SetShared(serverId, buffs);
+    peers[serverId] = os.clock();
+    buffTimers.SetShared(serverId, arr, fulls, list);
 end
 
-local function Receive(now)
-    for _ = 1,MAX_READS do
-        local message, err = sock:receivefrom();
-        if (message ~= nil) then
-            Read(message, now);
-        elseif (err == 'timeout') then
-            break;   -- (other errors: Windows reports each send to a port no client is on, so keep reading)
+if available then
+    vana.on('ipc', function (e)
+        if settings.share_timers then
+            pcall(Read, tostring(e.message or ''));
         end
-    end
+    end);
 end
 
 -- Call once per frame
 function share.Update()
-    if (not settings.share_timers) then
-        if (sock ~= nil) or (failed ~= nil) then
-            Close();
-        end
+    if (not settings.share_timers) or (not available) then
         return;
     end
     local now = os.clock();
-    if (sock == nil) then
-        if (now - lastTry < RETRY_EVERY) then
-            return;
-        end
-        lastTry = now;
-        Open();
-        if (sock == nil) then
-            return;
-        end
-    end
-    if (now - lastPoll >= POLL_EVERY) then
-        lastPoll = now;
-        Receive(now);
-    end
     if (now - lastSend >= SEND_EVERY) then
         lastSend = now;
         Send();
     end
 end
 
-share.Close = Close;
-
 -- For the menu: how sharing is going, as text
 function share.Status()
-    if (failed ~= nil) then
-        return failed;
-    end
-    if (sock == nil) then
-        return 'Connecting';
+    if (not available) then
+        return 'Needs VanaCore';
     end
     local count, now = 0, os.clock();
     for _,heard in pairs(peers) do

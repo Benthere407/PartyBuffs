@@ -1,6 +1,8 @@
 local fonts = require('fonts');
+local imgui = require('imgui');
 local scaling = require('scaling');
 local buffTimers = require('bufftimers');
+local tpDisplay = require('tpdisplay');
 local groups = require('buffgroups');
 
 local partyBuffs = AshitaCore:GetPointerManager():Get('party.statusicons');
@@ -105,7 +107,7 @@ local function GetStatusIconById(statusId)
         texture = LoadStatusIconFromResource(statusId);
     end
     if (texture ~= nil) then
-        icon = { texture = texture, size = TextureSize(texture) };
+        icon = { texture = texture, size = TextureSize(texture), ptr = tonumber(ffi.cast('uint32_t', texture)) };
         StatusCache[statusId] = icon;
     end
 
@@ -139,6 +141,15 @@ local function GetBuffs(index)
         return buffs;
     end
 
+    -- One of your own characters: its client's list, up to date even when the party list isn't yet
+    local sharedList = buffTimers.GetSharedList(index);
+    if (sharedList ~= nil) then
+        for _,buff in ipairs(sharedList) do
+            buffs:append(buff);
+        end
+        return buffTimers.DropGone(index, buffs);
+    end
+
     local partyMgr = AshitaCore:GetMemoryManager():GetParty();
     local playerId = partyMgr:GetMemberServerId(index)
     for i = 0,4 do
@@ -158,7 +169,7 @@ local function GetBuffs(index)
             end
         end
     end
-    return buffs;
+    return buffTimers.DropGone(index, buffs);
 end
 
 -- Sample buffs used by the config UI's test mode: Protect, Shell, Haste, Regen, Refresh, Stoneskin, then
@@ -378,7 +389,11 @@ function member:Render(testMode)
     --Draw member buffs..
     local debuffRings = opt('ring_debuff', false);
     local showTimers = opt('show_rings', false) or opt('show_timer_text', false) or debuffRings;
+    local frontDraw = opt('front_icons', false) and imgui.GetForegroundDrawList() or nil;   -- in front of the party frames
+    local copies = {};   -- how many of each buff so far: each copy of a buff has its own timer
     for slot,buff in ipairs(sorted) do
+        copies[buff] = (copies[buff] or 0) + 1;
+        local nth = (not unique) and copies[buff] or nil;
         -- Counted from the right, next to the party list, so every row's zigzag lines up there
         -- whatever its number of buffs
         local fromRight = #sorted - slot + 1;
@@ -386,7 +401,11 @@ function member:Render(testMode)
         local iconY = self.PositionY + (moved and zigzag or 0);
         local icon = GetStatusIconById(buff);
         if (icon ~= nil) then
-            renderer:Draw(icon.texture, buffPositionX, iconY, icon.size, iconSize / icon.size);
+            if (frontDraw ~= nil) then
+                frontDraw:AddImage(icon.ptr, { buffPositionX, iconY }, { buffPositionX + iconSize, iconY + iconSize });
+            else
+                renderer:Draw(icon.texture, buffPositionX, iconY, icon.size, iconSize / icon.size);
+            end
         end
         if (showTimers) then
             local fraction, remaining;
@@ -397,8 +416,8 @@ function member:Render(testMode)
                 fraction = 1 - (((os.clock() / period) + (slot * 0.13) + (self.Index * 0.21)) % 1);
                 remaining = fraction * period;
             else
-                fraction = buffTimers.GetFraction(self.Index, buff);
-                remaining = buffTimers.GetRemaining(self.Index, buff);
+                fraction = buffTimers.GetFraction(self.Index, buff, nth);
+                remaining = buffTimers.GetRemaining(self.Index, buff, nth);
             end
             table.insert(rings, { x = buffPositionX, y = iconY, size = iconSize, fraction = fraction, remaining = remaining, seed = (self.Index * 0.37) + (slot * 0.61),
                 -- overlapping icons in a straight line: every other label a line lower (zigzag icons stagger them already)
@@ -445,6 +464,12 @@ function member:Render(testMode)
             local text = string.format('%.' .. tostring(opt('distance_decimals', 1)) .. 'f', entityDistance);
 
             local thickness = opt('distance_outline_thickness', 1);
+            if opt('front_distance', false) and tpDisplay.can_front then
+                self:HideText();
+                tpDisplay.draw_text(text, settings.distance_object.color, x, y, self.FontObject.font_height, settings.distance_object,
+                    { border_size = thickness, border_color = opt('distance_outline_color', 0xFF000000) });
+                return;
+            end
             for i,o in ipairs(self.Outlines) do
                 if (thickness > 0) then
                     local dir = OUTLINE_DIRS[i];

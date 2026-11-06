@@ -1,6 +1,6 @@
 addon.name      = 'PartyBuffs';
 addon.author    = 'Thorny';
-addon.version   = '2.1';
+addon.version   = '2.2';
 addon.desc      = 'Displays party buffs next to the party list, with party TP and target health.';
 addon.link      = 'https://github.com/ThornyFFXI/MiscAshita4';
 
@@ -15,6 +15,7 @@ local imgui = require('imgui');
 local scaling = require('scaling');
 local memberDisplay = require('memberdisplay');
 local buffTimers = require('bufftimers');
+local durations = require('durations');
 local timerShare = require('timershare');
 local ringOverlay = require('ringoverlay');
 local yunaFont = require('yunafont');
@@ -100,7 +101,10 @@ local default_settings = T{
     ring_show_unknown = true,     -- dim full ring when a party member's time left is unknown
     learned_durations = T{},      -- [tostring(buff id)] = seconds
     tracked_buffs = T{},          -- [tostring(server id)] = { [tostring(buff id)] = start (os.time) }, kept over reloads
-    share_timers = false,         -- swap exact buff timers with your other clients on this PC
+    share_timers = true,          -- swap exact buff timers with your other clients on this PC
+    share_default_on = false,     -- this character's share_timers was switched on once, when that became the default
+    front_icons = false,          -- draw the icons, rings and timer text in front of the party frames
+    front_distance = false,       -- draw the range text in front of the party frames
     test_buff_count = 6,          -- sample buffs per member in Test Mode (1-18)
     debuffs_first = false,        -- enfeebles and debuffs go next to the party list
     ring_debuff = false,          -- debuffs get their own plain ring (instead of the timer ring)
@@ -160,6 +164,15 @@ local function EnsureSettings()
     settings.priority       = settings.priority or T{};
     settings.learned_durations = settings.learned_durations or T{};
     tpDisplay.Import();
+    -- (2.1 saved sharing as off for every character that loaded it)
+    if (not settings.share_default_on) then
+        settings.share_default_on = true;
+        settings.share_timers = true;
+    end
+    -- (TP and target HP% shared one switch before: the target starts on what that was)
+    if (settings.tp.target.in_front == nil) then
+        settings.tp.target.in_front = settings.tp.party.in_front;
+    end
 end
 EnsureSettings();
 memberDisplay.RebuildLookups();
@@ -258,6 +271,8 @@ local uiHooks = {
     get_icon_themes    = memberDisplay.GetIconThemes,
     get_rings          = memberDisplay.GetRings,
     share_status       = timerShare.Status,
+    caster_lengths     = durations.count,
+    forget_lengths     = durations.clear,
     current_job        = CurrentJob,
     save_profile       = SaveProfile,
     load_profile       = LoadProfile,
@@ -288,14 +303,26 @@ ashita.events.register('unload', 'unload_cb', function ()
     end
     tpDisplay.Unload();
     yunaFont.unregister();
-    pcall(timerShare.Close);
+    pcall(buffTimers.SetLog, nil);
     pcall(buffTimers.Save);
     settingLib.save();   -- keep learned buff durations and party members' buff timers
 end)
 
+-- A timer tracking error shows once in the chat log, instead of the timers just going quietly wrong
+local reported = {};
+local function Guarded(fn, ...)
+    local ok, err = pcall(fn, ...);
+    if (not ok) and (not reported[tostring(err)]) then
+        reported[tostring(err)] = true;
+        print(chat.header('PartyBuffs') .. chat.error(tostring(err)));
+    end
+end
+
 ashita.events.register('packet_in', 'packet_in_cb', function (e)
     if (e.id == 0x028) then
-        pcall(buffTimers.HandleAction, e.data_modified);
+        Guarded(buffTimers.HandleAction, e.data_modified);
+    elseif (e.id == 0x029) then
+        Guarded(buffTimers.HandleMessage, e.data_modified);
     end
 end)
 
@@ -310,6 +337,8 @@ local function StringToBuff(buffString)
         end
     end    
 end
+
+local timerLogOn = false;
 
 ashita.events.register('command', 'command_cb', function (e)
     local args = e.command:args();
@@ -337,6 +366,15 @@ ashita.events.register('command', 'command_cb', function (e)
         return;
     end
     
+    -- /pb timerlog -> write what the timers see to a file, until it's run again
+    if (string.lower(args[2]) == 'timerlog') then
+        timerLogOn = not timerLogOn;
+        local path = ('%s\\config\\addons\\%s\\timerlog_%s.txt'):format((AshitaCore:GetInstallPath():gsub('[\\/]+$', '')), addon.name, settingLib.name);
+        local on = buffTimers.SetLog(timerLogOn and path or nil);
+        print(chat.header('PartyBuffs') .. chat.message('Timer log ') .. chat.color1(2, on and path or 'off') .. chat.message('.'));
+        return;
+    end
+
     -- /pb profile [name]  -> load a saved profile
     if (string.lower(args[2]) == 'profile') then
         if (#args < 3) then
@@ -529,7 +567,7 @@ ashita.events.register('d3d_present', 'd3d_present_cb', function ()
     local testMode = confUI.is_open[1] and confUI.test_mode[1];
 
     pcall(buffTimers.Update, 0);   -- reads player memory, which can be unavailable while zoning / logging in
-    pcall(timerShare.Update);
+    Guarded(timerShare.Update);
     memberDisplay.ResetBounds();
     renderer:Begin();
     for _,member in ipairs(partyMembers) do

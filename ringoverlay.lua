@@ -245,7 +245,8 @@ function overlay.Draw(rings, outline)
     imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, { 0, 0 });
     imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     if imgui.Begin('##partybuffs_overlay', true, WINDOW_FLAGS) then
-        local draw = imgui.GetWindowDrawList();
+        -- (the rings and timer text stay with the icons when those are drawn in front of the party frames)
+        local draw = opt('front_icons', false) and imgui.GetForegroundDrawList() or imgui.GetWindowDrawList();
         local t = os.clock();
         local showRings = opt('show_rings', false);
         for _,ring in ipairs(rings) do

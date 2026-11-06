@@ -506,6 +506,26 @@ local function page_position()
 end
 
 ----------------------------------------------------------------------------------------------------
+-- Draw in front
+----------------------------------------------------------------------------------------------------
+local function page_front()
+    local s, n = gSettings, nil;
+    vc.title('Draw In Front', 'over the party frames');
+
+    vc.section('DRAW IN FRONT OF PARTY FRAMES');
+    n = switch('front_icons', 'Icons', s.front_icons == true,
+        'Draws the buff icons, their rings and their timer text over the party frames and every other window.');
+    if (n ~= nil) then s.front_icons = n; mark_dirty(); end
+    n = switch('front_tp', 'TP', s.tp.party.in_front == true, 'Draws the party and alliance TP numbers over the frames.');
+    if (n ~= nil) then s.tp.party.in_front = n; mark_dirty(); end
+    n = switch('front_distance', 'Distance', s.front_distance == true, 'Draws the range text over the frames.');
+    if (n ~= nil) then s.front_distance = n; mark_dirty(); end
+    n = switch('front_hp', 'HP', s.tp.target.in_front == true, 'Draws the target HP% over the frames.');
+    if (n ~= nil) then s.tp.target.in_front = n; mark_dirty(); end
+    vc.note('TP, Distance and HP need VanaCore. Off: they\'re behind the party frames and use Ashita\'s own text. In front, Distance uses Comic Sans or Arial.');
+end
+
+----------------------------------------------------------------------------------------------------
 -- Range text
 ----------------------------------------------------------------------------------------------------
 local DECIMALS = { { 0, '0' }, { 1, '0.0' }, { 2, '0.00' } };
@@ -660,10 +680,10 @@ local function page_rings()
 
     vc.section('TIME LEFT');
     vc.note('Your own buffs use the game\'s exact timers. Party members\' timers are not sent by the server, so they are estimated from when the buff landed (or was recast) and its duration. '..
-        'Durations are learned from your own timers and from watching buffs wear off, and saved between sessions. '..
+        'Durations are measured per caster, job and spell when a cast lands on one of your characters, and shared by all your characters. Otherwise they are learned from watching buffs wear off. '..
         'Buffs already up when you first saw a member (after loading or zoning) show as unknown until recast.');
     n = switch('share_timers', 'Share with my other clients', s.share_timers == true,
-        'Your clients on this PC send each other their exact timers, so those characters are exact instead of estimated. Turn this on in every client. Nothing leaves your PC.');
+        'Your clients on this PC send each other their exact timers, so those characters are exact instead of estimated. It needs to be on in each client. Nothing leaves your PC.');
     if (n ~= nil) then s.share_timers = n; mark_dirty(); end
     if s.share_timers then
         vc.stat('Sharing', gHooks.share_status());
@@ -687,9 +707,12 @@ local function page_rings()
     imgui.SameLine(0, vc.z(16));
     if vc.button('Forget learned##pb_forget_durations', 'danger', 130) then
         s.learned_durations = T{};
+        gHooks.forget_lengths();
         mark_dirty();
     end
-    tip('Clear learned durations and go back to the built-in ones.');
+    tip('Clear learned durations and go back to the built-in ones. This also clears the caster lengths shared by all your characters.');
+    vc.stat('Caster lengths', tostring(gHooks.caster_lengths()));
+    tip('Lengths measured per caster, job and spell, shared by all your characters.');
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -1022,6 +1045,7 @@ local PAGES = {
     saved    = page_saved,
     range    = page_range,
     range_font = page_range_font,
+    front    = page_front,
     rings    = page_rings,
     text     = page_timer_text,
     active   = page_active,
@@ -1034,7 +1058,7 @@ local PAGES = {
     tp_help = tpPages.help,
 };
 local PAGE_NAME = {
-    about = 'About', saved = 'Saved Themes', icons = 'Icons', position = 'Position', range = 'Range Text', range_font = 'Range Text / Font', rings = 'Timer Rings',
+    about = 'About', saved = 'Saved Themes', icons = 'Icons', position = 'Position', front = 'Draw In Front', range = 'Range Text', range_font = 'Range Text / Font', rings = 'Timer Rings',
     text = 'Timer Text', active = 'Active Buffs', filters = 'Filters', priority = 'Priority', profiles = 'Profiles',
     tp_display = 'TP / Display', tp_layout = 'TP / Position & Size', tp_style = 'TP / Text Style', tp_help = 'TP / Help',
 };
@@ -1054,6 +1078,7 @@ local function sidebar(nav)
     if nav.head('gear', 'Display', false, 'h_display') then win.page = 'icons'; end
     if nav.item('Icons', win.page == 'icons', 'icons') then win.page = 'icons'; end
     if nav.item('Position', win.page == 'position', 'position') then win.page = 'position'; end
+    if nav.item('Draw In Front', win.page == 'front', 'front') then win.page = 'front'; end
     nav.gap();
     if nav.head('search', 'Range Text', false, 'h_range') then win.page = 'range'; end
     nav.tip('Distance to each party member');

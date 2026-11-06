@@ -155,11 +155,6 @@ local function page_display()
     vc.section('TARGET');
     switch('showtarget', 'Show target HP%', s.target, 'enabled');
 
-    vc.section('DRAWING');
-    switch('infront', 'Draw in front of Party Frames', s.party, 'in_front',
-        'Draws the numbers over the party and alliance frames, and every other window.');
-    vc.note('Needs VanaCore. Off: the numbers are behind the party frames, and use Ashita\'s own text.');
-
     vc.section('MOVING');
     switch('shiftdrag', 'Shift+drag parties and target', s.party, 'shift_drag', 'Hold Shift and drag the numbers to move them.');
 end
