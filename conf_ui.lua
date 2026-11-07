@@ -490,12 +490,6 @@ local function page_saved()
     vc.note('Sends this client\'s current look to your other open clients, along with where the buffs sit, one icon per buff, debuffs first and your own row. '..
         'Filters, priority and profiles stay as they are.');
     if (gSaved.confirm == 'copy') then
-        imgui.TextColored(C.gold, 'Replace the setup on your other clients?');
-        imgui.SameLine();
-        if vc.button('Continue##pb_saved_copy_next', 'primary', 90) then gSaved.confirm = 'copy_sure'; end
-        imgui.SameLine();
-        if vc.button('Cancel##pb_saved_copy_no', nil, 80) then gSaved.confirm = nil; end
-    elseif (gSaved.confirm == 'copy_sure') then
         imgui.TextColored(C.bad, 'Are you sure? Their current setup can\'t be brought back.');
         imgui.SameLine();
         if vc.button('Yes, copy now##pb_saved_copy_yes', 'danger', 120) then
@@ -507,7 +501,7 @@ local function page_saved()
         if vc.button('Cancel##pb_saved_copy_stop', nil, 80) then gSaved.confirm = nil; end
     else
         if vc.button('Copy to other clients##pb_saved_copy', 'primary', nil) then gSaved.confirm = 'copy'; end
-        tip('Send the current setup to your other open clients. Asks twice first.');
+        tip('Send the current setup to your other open clients. Asks you to confirm first.');
     end
     local copied = gHooks.copy_status();
     if (copied ~= nil) then vc.note(copied); end

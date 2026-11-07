@@ -1,6 +1,6 @@
 addon.name      = 'PartyBuffs';
 addon.author    = 'Thorny';
-addon.version   = '2.3';
+addon.version   = '2.4';
 addon.desc      = 'Displays party buffs next to the party list, with party TP and target health.';
 addon.link      = 'https://github.com/ThornyFFXI/MiscAshita4';
 
