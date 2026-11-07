@@ -273,6 +273,8 @@ local uiHooks = {
     get_icon_themes    = memberDisplay.GetIconThemes,
     get_rings          = memberDisplay.GetRings,
     share_status       = timerShare.Status,
+    copy_setup         = timerShare.CopySetup,
+    copy_status        = timerShare.CopyStatus,
     caster_lengths     = durations.count,
     forget_lengths     = durations.clear,
     current_job        = CurrentJob,
@@ -280,6 +282,14 @@ local uiHooks = {
     load_profile       = LoadProfile,
     delete_profile     = DeleteProfile,
 };
+
+-- Another of your clients sent its setup
+timerShare.on_copied = function(name)
+    ApplyFonts();
+    tpDisplay.ApplyFonts();
+    settingLib.save();
+    print(chat.header('PartyBuffs'):append(chat.message(('Copied the setup from %s.'):format(name))));
+end
 
 settingLib.register('settings', 'settings_update', function(newSettings)
     settings = newSettings;

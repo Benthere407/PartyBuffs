@@ -27,6 +27,8 @@ saved.KEYS = {
 };
 -- And these from the range text's font (settings.distance_object)
 saved.FONT_KEYS = { 'font_family', 'font_height', 'bold', 'italic', 'color' };
+-- Copying to your other clients also sends these, which a theme leaves out
+saved.COPY_KEYS = { 'list_offset_x', 'list_offset_y', 'unique_buffs', 'debuffs_first', 'show_self' };
 -- And the TP and target numbers: section of the file -> function giving that table of settings.tp, and its keys
 -- (not which parties are switched on, or shift+drag)
 local TP_BLOCKS = {
@@ -106,11 +108,8 @@ function saved.list()
     return names;
 end
 
--- Saves the current look as <name>. Returns ok, error
-function saved.save(name, settings)
-    name = saved.clean_name(name);
-    if (name == '') then return false, 'Give the theme a name.'; end
-
+-- The current look as a table
+local function collect(settings)
     local data = { version = 1, look = {}, range_font = {} };
     for _, k in ipairs(saved.KEYS) do data.look[k] = settings[k]; end
     local fo = settings.distance_object or {};
@@ -123,7 +122,15 @@ function saved.save(name, settings)
             data.tp[block] = out;
         end
     end
+    return data;
+end
 
+-- Saves the current look as <name>. Returns ok, error
+function saved.save(name, settings)
+    name = saved.clean_name(name);
+    if (name == '') then return false, 'Give the theme a name.'; end
+
+    local data = collect(settings);
     local dir = saved.dir();
     if not ashita.fs.exists(dir) then
         if not pcall(ashita.fs.create_dir, dir) then pcall(ashita.fs.create_directory, dir); end
@@ -136,15 +143,18 @@ function saved.save(name, settings)
     return true, name;
 end
 
--- Loads <name> into settings (settings the file doesn't have are left as they are). Returns ok, error
-function saved.load(name, settings)
-    local fn = loadfile(path_of(name));
-    if not fn then return false, 'Could not read ' .. name .. '.lua'; end
+-- Runs a theme's source, or nil if it isn't one
+local function read_data(fn)
     setfenv(fn, {});   -- (data only: the file sees no globals)
     local ok, data = pcall(fn);
     if (not ok) or (type(data) ~= 'table') or (type(data.look) ~= 'table') then
-        return false, name .. '.lua is not a PartyBuffs theme.';
+        return nil;
     end
+    return data;
+end
+
+-- Puts a look into settings (settings it doesn't have are left as they are)
+local function apply(data, settings)
     for _, k in ipairs(saved.KEYS) do
         if (data.look[k] ~= nil) then settings[k] = data.look[k]; end
     end
@@ -161,6 +171,39 @@ function saved.load(name, settings)
                     if (src[k] ~= nil) and (type(src[k]) == type(to[k])) then to[k] = src[k]; end
                 end
             end
+        end
+    end
+end
+
+-- Loads <name> into settings. Returns ok, error
+function saved.load(name, settings)
+    local fn = loadfile(path_of(name));
+    if not fn then return false, 'Could not read ' .. name .. '.lua'; end
+    local data = read_data(fn);
+    if (data == nil) then return false, name .. '.lua is not a PartyBuffs theme.'; end
+    apply(data, settings);
+    return true;
+end
+
+-- The current setup as one line of text, to send to another client
+function saved.pack(settings)
+    local data = collect(settings);
+    data.saved_theme = settings.saved_theme;
+    data.extra = {};
+    for _, k in ipairs(saved.COPY_KEYS) do data.extra[k] = settings[k]; end
+    return 'return ' .. (serialize(data, ''):gsub('\n%s*', ' '));
+end
+
+-- Puts text from saved.pack into settings. Returns true if it could
+function saved.unpack(text, settings)
+    local fn = (text:sub(1, 7) == 'return ') and loadstring(text) or nil;
+    local data = fn and read_data(fn) or nil;
+    if (data == nil) then return false; end
+    apply(data, settings);
+    settings.saved_theme = data.saved_theme or '';
+    if (type(data.extra) == 'table') then
+        for _, k in ipairs(saved.COPY_KEYS) do
+            if (data.extra[k] ~= nil) then settings[k] = data.extra[k]; end
         end
     end
     return true;

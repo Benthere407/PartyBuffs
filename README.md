@@ -31,7 +31,7 @@ Put this folder in `addons\partybuffs`, then in game:
 - **Better estimates:** buff lengths are measured per caster, job and spell when a cast lands on one of your characters, and all your characters share them. Composure is kept apart, and a buff leaves its icon as soon as its wear-off message arrives.
 - **Draw In Front:** separate switches on the Display menu put Icons, TP, Distance and HP over the party frames.
 - **Range text:** each member's distance, with its own font and position.
-- **Saved Themes:** save the whole look under a name and load it from a dropdown. Every character can use it.
+- **Saved Themes:** save the whole look under a name and load it from a dropdown. Every character can use it. You can also copy your current setup straight to your other open clients (needs VanaCore).
 - **TP and target numbers:** each party's TP and your target's HP%, from the tparty addon. Party 1 moves with the buffs; the alliance parties and the target move on their own. `/tparty` opens these pages.
 - **Filters, priority and profiles:** choose which buffs show and in what order.
 
