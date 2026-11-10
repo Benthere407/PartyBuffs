@@ -315,6 +315,12 @@ local function page_icons()
     n = switch('debuffs_first', 'Debuffs first', s.debuffs_first == true,
         'Enfeebles and debuffs on a player go first in line, next to the party list. Debuffs hidden on the Filters page stay hidden.');
     if (n ~= nil) then s.debuffs_first = n; mark_dirty(); end
+    n = switch('unique_buffs', 'Merge same-name buffs', s.unique_buffs == true,
+        'Off: every buff gets its own icon and timer, so two Minuets show twice and Geo Haste shows beside Haste. On: buffs with the same name share one icon.');
+    if (n ~= nil) then s.unique_buffs = n; mark_dirty(); end
+    n = switch('lead_buffs', 'Haste, Phalanx, Refresh first', s.lead_buffs ~= false,
+        'Group Haste, Phalanx and Refresh in that order next to the party list, behind any debuffs when Debuffs first is on. With zigzag icons, Phalanx always sits on the top row.');
+    if (n ~= nil) then s.lead_buffs = n; mark_dirty(); end
 
     vc.section('ICONS', nil, function()
         s.size, s.icon_spacing, s.row_spacing = 16, 0, 20; mark_dirty();

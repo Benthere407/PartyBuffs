@@ -28,7 +28,7 @@ saved.KEYS = {
 -- And these from the range text's font (settings.distance_object)
 saved.FONT_KEYS = { 'font_family', 'font_height', 'bold', 'italic', 'color' };
 -- Copying to your other clients also sends these, which a theme leaves out
-saved.COPY_KEYS = { 'list_offset_x', 'list_offset_y', 'unique_buffs', 'debuffs_first', 'show_self' };
+saved.COPY_KEYS = { 'list_offset_x', 'list_offset_y', 'unique_buffs', 'debuffs_first', 'lead_buffs', 'show_self' };
 -- And the TP and target numbers: section of the file -> function giving that table of settings.tp, and its keys
 -- (not which parties are switched on, or shift+drag)
 local TP_BLOCKS = {

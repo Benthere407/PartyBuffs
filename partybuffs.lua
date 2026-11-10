@@ -1,6 +1,6 @@
 addon.name      = 'PartyBuffs';
 addon.author    = 'Thorny';
-addon.version   = '2.4';
+addon.version   = '2.5';
 addon.desc      = 'Displays party buffs next to the party list, with party TP and target health.';
 addon.link      = 'https://github.com/ThornyFFXI/MiscAshita4';
 
@@ -103,10 +103,12 @@ local default_settings = T{
     tracked_buffs = T{},          -- [tostring(server id)] = { [tostring(buff id)] = start (os.time) }, kept over reloads
     share_timers = true,          -- swap exact buff timers with your other clients on this PC
     share_default_on = false,     -- this character's share_timers was switched on once, when that became the default
+    copies_default_on = false,    -- this character's unique_buffs was switched off once, when showing every copy became the default
     front_icons = false,          -- draw the icons, rings and timer text in front of the party frames
     front_distance = false,       -- draw the range text in front of the party frames
     test_buff_count = 6,          -- sample buffs per member in Test Mode (1-18)
     debuffs_first = false,        -- enfeebles and debuffs go next to the party list
+    lead_buffs = true,            -- Haste, Phalanx, Refresh grouped next to the party list (Phalanx on the zigzag's top row)
     ring_debuff = false,          -- debuffs get their own plain ring (instead of the timer ring)
     ring_debuff_thickness = 2,
     ring_debuff_gap = 0,
@@ -132,8 +134,8 @@ local default_settings = T{
     exclusions = T{},
     priority = T{},
 
-    -- Only show one icon per buff (e.g. no stacked copies of the same BRD song)
-    unique_buffs = true,
+    -- Merge buffs with the same name into one icon (off: every copy, e.g. two Minuets, gets its own icon)
+    unique_buffs = false,
 
     -- List layout
     row_spacing = 20,
@@ -170,6 +172,11 @@ local function EnsureSettings()
     if (not settings.share_default_on) then
         settings.share_default_on = true;
         settings.share_timers = true;
+    end
+    -- (every copy of a buff gets its own icon now, as two Minuets are two buffs)
+    if (not settings.copies_default_on) then
+        settings.copies_default_on = true;
+        settings.unique_buffs = false;
     end
     -- (TP and target HP% shared one switch before: the target starts on what that was)
     if (settings.tp.target.in_front == nil) then

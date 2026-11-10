@@ -23,6 +23,8 @@ Put this folder in `addons\partybuffs`, then in game:
 
 - **Icon themes:** XIView and XIView-Yuna, with icon size and spacing.
 - **Grow up or down:** the top of the Icons page sets which way the list adds members.
+- **Every buff shown:** each buff gets its own icon and timer, so two Minuets show twice and Geo Haste shows beside Haste. "Merge same-name buffs" on the Icons page puts them back to one icon.
+- **Haste, Phalanx, Refresh first:** those three sit together next to the party list (behind any debuffs), with Phalanx on the top row of a zigzag.
 - **Timer rings:** a ring around each icon that runs down as the buff wears off. You can set the colors, the
   style of the moving end (sparkle, dot or none), the dot size, and blinking when low. You can also show
   rings only when a buff is low.

@@ -177,6 +177,10 @@ end
 local TEST_BUFFS = { 40, 41, 33, 42, 43, 37, 36, 39, 116, 113, 94, 100, 195, 196, 197, 198, 199, 200 };
 local TEST_DEBUFFS = { 4, 13, 3, 6 };   -- Paralysis, Slow, Poison, Silence
 
+-- Grouped next to the party list in this order, from the party list out: Haste, Phalanx, Refresh
+local LEAD_RANK = { [33] = 1, [116] = 2, [43] = 3 };
+local PHALANX = 116;
+
 -- Screen rectangle covering everything drawn this frame (used for shift+drag hit testing).
 local bounds = nil;
 
@@ -336,7 +340,7 @@ function member:Render(testMode)
     end
 
     local sorted = T{};
-    local unique = opt('unique_buffs', true);
+    local unique = opt('unique_buffs', false);
     local seen = {};
     for _,buff in ipairs(buffs) do
         if testMode or (not lookups.exclusions[buff]) then
@@ -357,6 +361,24 @@ function member:Render(testMode)
                 end
             end
         end
+    end
+
+    -- Haste, Phalanx and Refresh grouped at the right end of the row (behind the debuffs, with Debuffs first)
+    local lead = opt('lead_buffs', true);
+    if lead then
+        local others, group = T{}, {};
+        for _,buff in ipairs(sorted) do
+            if LEAD_RANK[buff] then
+                group[#group + 1] = buff;
+            else
+                others:append(buff);
+            end
+        end
+        table.sort(group, function(a, b) return LEAD_RANK[a] > LEAD_RANK[b]; end);
+        for _,buff in ipairs(group) do
+            others:append(buff);
+        end
+        sorted = others;
     end
 
     -- Debuffs first: enfeebles and debuffs move next to the party list (the right end of the row)
@@ -386,6 +408,18 @@ function member:Render(testMode)
     -- Which icons move: the 2nd, 4th... normally; the 1st, 3rd... when that puts the first one where it should be
     -- (moving down leaves the first on top, moving up puts it on top)
     local moveFirst = (opt('icon_zigzag_first', 'top') == 'top') == (zigzag < 0);
+    -- Phalanx always on the top row: flip this row's zigzag if it would land on the bottom
+    if lead and (zigzag ~= 0) then
+        for slot = #sorted,1,-1 do
+            if (sorted[slot] == PHALANX) then
+                local moved = ((#sorted - slot + 1) % 2 == 1) == moveFirst;
+                if (moved ~= (zigzag < 0)) then
+                    moveFirst = not moveFirst;
+                end
+                break;
+            end
+        end
+    end
 
     --Draw member buffs..
     local debuffRings = opt('ring_debuff', false);
@@ -423,7 +457,7 @@ function member:Render(testMode)
                 remaining = buffTimers.GetRemaining(self.Index, buff, nth);
                 assumed = knownOnly and (not buffTimers.IsKnown(self.Index, buff));
             end
-            table.insert(rings, { x = buffPositionX, y = iconY, size = iconSize, fraction = fraction, remaining = remaining, assumed = assumed, seed = (self.Index * 0.37) + (slot * 0.61),
+            table.insert(rings, { id = buff, x = buffPositionX, y = iconY, size = iconSize, fraction = fraction, remaining = remaining, assumed = assumed, seed = (self.Index * 0.37) + (slot * 0.61),
                 -- overlapping icons in a straight line: every other label a line lower (zigzag icons stagger them already)
                 zig = (iconSpacing < 0) and (zigzag == 0) and (fromRight % 2 == 0),
                 -- zigzag icons: the timer text of the zig (in line) or zag (moved) icons can go above them
